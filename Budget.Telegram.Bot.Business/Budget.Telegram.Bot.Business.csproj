@@ -11,4 +11,14 @@
       <ProjectReference Include="..\Budget.Telegram.Bot.Entity\Budget.Telegram.Bot.Entity.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Interfaces\" />
+      <Folder Include="Services\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Telegram.Bot" Version="22.1.3" />
+      <PackageReference Include="Telegram.Bots.Extensions.Polling" Version="5.9.0" />
+    </ItemGroup>
+
 </Project>

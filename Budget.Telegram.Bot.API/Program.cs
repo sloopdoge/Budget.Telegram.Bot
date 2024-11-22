@@ -1,16 +1,23 @@
+using Telegram.Bot;
+
 namespace Budget.Telegram.Bot.API;
 
 public class Program
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        builder.Services.AddAuthorization();
-
+        builder.Services.AddControllers();
         // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
+        
+        builder.Services.AddSingleton<ITelegramBotClient>(sp =>
+        {
+            var token = builder.Configuration["TelegramBot:Token"];
+            return new TelegramBotClient(token);
+        });
 
         var app = builder.Build();
 
@@ -21,14 +28,13 @@ public class Program
         }
 
         app.UseHttpsRedirection();
-
         app.UseAuthorization();
+        app.MapControllers();
+        
+        var botClient = app.Services.GetRequiredService<ITelegramBotClient>();
+        var webhookUrl = builder.Configuration["TelegramBot:WebhookUrl"];
+        await botClient.SetWebhook(webhookUrl);
 
-        var summaries = new[]
-        {
-            "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-        };
-
-        app.Run();
+        await app.RunAsync();
     }
 }
