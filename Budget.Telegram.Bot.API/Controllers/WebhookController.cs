@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
@@ -11,42 +10,40 @@ public class WebhookController : ControllerBase
 {
     private readonly ITelegramBotClient _botClient;
     private readonly ILogger<WebhookController> Logger;
+    private readonly IConfiguration _configuration;
 
-    public WebhookController(ITelegramBotClient botClient, ILogger<WebhookController> logger)
+    private string token = "";
+    private string webhookUrl = "";
+
+    public WebhookController(ITelegramBotClient botClient, ILogger<WebhookController> logger, IConfiguration configuration)
     {
         _botClient = botClient;
         Logger = logger;
+        _configuration = configuration;
+        
+        var token = _configuration["TelegramBot:Token"];
+        var webhookUrl = _configuration["TelegramBot:WebhookUrl"];
     }
     
     [HttpPost]
-    public async Task<IActionResult> Post([FromBody] Update update)
+    public async Task HandleUpdate([FromBody] Update update)
     {
-        if (update == null)
-        {
-            Logger.LogError("Received an empty update");
-            return BadRequest();
-        }
-
         try
         {
-            Logger.LogInformation($"Received update: {update.Id}");
-
-            if (update.Message != null)
+            if (update == null)
             {
-                var chatId = update.Message.Chat.Id;
-                var messageText = update.Message.Text;
-
-                Logger.LogInformation($"Message from {chatId}: {messageText}");
-
-                await _botClient.SendMessage(chatId, $"You said: {messageText}");
+                throw new NullReferenceException("Received empty update.");
             }
-
-            return Ok();
         }
-        catch (Exception ex)
+        catch (Exception e)
         {
-            Logger.LogError($"Error processing update: {ex.Message}");
-            return StatusCode(500, "Internal server error");
+            Logger.LogError(e, e.Message);
         }
+    }
+    
+    [HttpGet]
+    public string Get() 
+    {
+        return "Telegram bot was started";
     }
 }
