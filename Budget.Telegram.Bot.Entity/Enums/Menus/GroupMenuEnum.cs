@@ -1,7 +1,7 @@
 ﻿namespace Budget.Telegram.Bot.Entity.Enums.Menus;
 
-public enum StartMenuEnum
+public enum GroupMenuEnum
 {
-    GroupMenu,
-    BudgetMenu
+    AddGroup,
+    JoinGroup,
 }
