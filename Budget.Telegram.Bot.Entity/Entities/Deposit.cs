@@ -1,9 +1,11 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace Budget.Telegram.Bot.Entity.Entities;
 
 public class Deposit
 {
+    [Key]
     public long Id { get; set; }
     public string? Description { get; set; }
     public double Amount { get; set; }

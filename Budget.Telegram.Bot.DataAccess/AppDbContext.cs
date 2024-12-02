@@ -13,6 +13,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<TelegramUser>(entity =>
+        {
+            entity.HasKey(tu => tu.Id);
+            entity.Property(tu => tu.Id).ValueGeneratedNever();
+        });
+        
         modelBuilder.Entity<TelegramUser>()
             .HasMany(tu => tu.Groups)
             .WithMany(g => g.Users)
@@ -44,7 +50,5 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 "BudgetExpense",
                 j => j.HasOne<Expense>().WithMany().HasForeignKey("ExpenseId"),
                 j => j.HasOne<Entity.Entities.Budget>().WithMany().HasForeignKey("BudgetId"));
-        
-        base.OnModelCreating(modelBuilder);
     }
 }

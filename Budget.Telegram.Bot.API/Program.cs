@@ -22,6 +22,7 @@ public abstract class Program
         builder.Services.AddSwaggerGen();
         
         builder.Services.AddSingleton<ITelegramBotClient>(options => new TelegramBotClient(token));
+        builder.Services.AddSingleton<IBotMenuStateService, BotMenuStateService>();
 
         builder.Services.AddScoped<ITelegramUserService, TelegramUserService>();
         builder.Services.AddScoped<IUsersGroupService, UsersGroupService>();
@@ -47,7 +48,7 @@ public abstract class Program
         app.MapControllers();
         
         var botClient = app.Services.GetRequiredService<ITelegramBotClient>();
-        await botClient.SetWebhook(webhookUrl);
+        await botClient.SetWebhook($"{webhookUrl}/api/bot/Webhook");
 
         await app.RunAsync();
     }

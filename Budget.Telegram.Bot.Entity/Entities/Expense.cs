@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using Budget.Telegram.Bot.Entity.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,6 +7,7 @@ namespace Budget.Telegram.Bot.Entity.Entities;
 
 public class Expense
 {
+    [Key]
     public long Id { get; set; }
     public ExpenseTypeEnum Type { get; set; }
     public required string Description { get; set; }
