@@ -1,5 +1,8 @@
+using Budget.Telegram.Bot.Business.Configs;
 using Budget.Telegram.Bot.Business.Interfaces;
+using Budget.Telegram.Bot.Business.Interfaces.BotManagementServices;
 using Budget.Telegram.Bot.Business.Services;
+using Budget.Telegram.Bot.Business.Services.BotManagementServices;
 using Budget.Telegram.Bot.DataAccess;
 using Microsoft.EntityFrameworkCore;
 using Telegram.Bot;
@@ -22,7 +25,8 @@ public abstract class Program
         builder.Services.AddSwaggerGen();
         
         builder.Services.AddSingleton<ITelegramBotClient>(options => new TelegramBotClient(token));
-        builder.Services.AddSingleton<IBotMenuStateService, BotMenuStateService>();
+        builder.Services.AddSingleton<IBotSessionStateService, BotSessionStateService>();
+        builder.Services.AddSingleton<BotMenusConfig>();
 
         builder.Services.AddScoped<ITelegramUserService, TelegramUserService>();
         builder.Services.AddScoped<IUsersGroupService, UsersGroupService>();
@@ -30,6 +34,8 @@ public abstract class Program
         builder.Services.AddScoped<IDepositService, DepositService>();
         builder.Services.AddScoped<IExpenseService, ExpenseService>();
         builder.Services.AddScoped<IBotMenuManagementService, BotMenuManagementService>();
+        builder.Services.AddScoped<IBotGroupManagementService, BotGroupManagementService>();
+        builder.Services.AddScoped<IBotBudgetManagementService, BotBudgetManagementService>();
         builder.Services.AddScoped<BotHandler>();
 
         builder.Services.AddDbContext<AppDbContext>(options =>

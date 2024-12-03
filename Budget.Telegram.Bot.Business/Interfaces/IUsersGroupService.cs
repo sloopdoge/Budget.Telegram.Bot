@@ -12,4 +12,5 @@ public interface IUsersGroupService
     Task<List<TelegramUser>> GetUsers(long id);
     Task<bool> AddBudget(long groupId, Entity.Entities.Budget budget);
     Task<List<Entity.Entities.Budget>> GetBudgets(long id);
+    Task<List<UsersGroup>> GetUserGroups(long userId);
 }

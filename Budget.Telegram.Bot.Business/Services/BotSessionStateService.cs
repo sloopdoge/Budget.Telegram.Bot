@@ -3,9 +3,10 @@ using Budget.Telegram.Bot.Entity.Enums.Menus;
 
 namespace Budget.Telegram.Bot.Business.Services;
 
-public class BotMenuStateService : IBotMenuStateService
+public class BotSessionStateService : IBotSessionStateService
 {
     private readonly Dictionary<long, Stack<MenuEnum>> _menuHistory = new();
+    private readonly Dictionary<long, UserOperationsEnum> _userOperations = new();
 
     public void PushMenu(long userId, MenuEnum menu)
     {
@@ -32,4 +33,13 @@ public class BotMenuStateService : IBotMenuStateService
             ? _menuHistory[userId].Peek()
             : MenuEnum.Start;
     }
+    
+    public void SetUserOperation(long userId, UserOperationsEnum operation) =>
+        _userOperations[userId] = operation;
+
+    public UserOperationsEnum? GetCurrentUserOperation(long userId) =>
+        _userOperations.ContainsKey(userId) ? _userOperations[userId] : null;
+
+    public void ClearUserOperation(long userId) =>
+        _userOperations.Remove(userId);
 }

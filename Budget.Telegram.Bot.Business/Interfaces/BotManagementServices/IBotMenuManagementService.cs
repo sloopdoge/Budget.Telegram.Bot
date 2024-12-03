@@ -1,6 +1,6 @@
 ﻿using Budget.Telegram.Bot.Entity.Entities;
 
-namespace Budget.Telegram.Bot.Business.Interfaces;
+namespace Budget.Telegram.Bot.Business.Interfaces.BotManagementServices;
 
 public interface IBotMenuManagementService
 {

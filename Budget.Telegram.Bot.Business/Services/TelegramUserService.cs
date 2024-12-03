@@ -1,6 +1,7 @@
 ﻿using Budget.Telegram.Bot.Business.Interfaces;
 using Budget.Telegram.Bot.DataAccess;
 using Budget.Telegram.Bot.Entity.Entities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Budget.Telegram.Bot.Business.Services;
@@ -12,7 +13,7 @@ public class TelegramUserService(ILogger<TelegramUserService> logger, AppDbConte
         try
         {
             var dbUser = await dbContext.TelegramUsers.FindAsync(id);
-
+            
             return dbUser;
         }
         catch (Exception e)

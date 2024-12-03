@@ -1,6 +1,7 @@
 ﻿using Budget.Telegram.Bot.Business.Interfaces;
 using Budget.Telegram.Bot.DataAccess;
 using Budget.Telegram.Bot.Entity.Entities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Budget.Telegram.Bot.Business.Services;
@@ -142,5 +143,13 @@ public class UsersGroupService(ILogger<UsersGroupService> logger, AppDbContext d
             logger.LogError(e, e.Message);
             return [];
         }
+    }
+    
+    public async Task<List<UsersGroup>> GetUserGroups(long userId)
+    {
+        return await dbContext.TelegramUsers
+            .Where(user => user.Id == userId)
+            .SelectMany(user => user.Groups)
+            .ToListAsync();
     }
 }

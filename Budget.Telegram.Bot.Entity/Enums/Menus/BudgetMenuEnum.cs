@@ -2,5 +2,7 @@
 
 public enum BudgetMenuEnum
 {
-    
+    AddBudget,
+    EditBudget,
+    ListMyBudgets,
 }

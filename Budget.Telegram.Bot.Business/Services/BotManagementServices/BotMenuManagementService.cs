@@ -1,21 +1,25 @@
 ﻿using Budget.Telegram.Bot.Business.Interfaces;
+using Budget.Telegram.Bot.Business.Interfaces.BotManagementServices;
 using Budget.Telegram.Bot.Entity.Entities;
 using Budget.Telegram.Bot.Entity.Enums.Menus;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
-using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
 
-namespace Budget.Telegram.Bot.Business.Services;
+namespace Budget.Telegram.Bot.Business.Services.BotManagementServices;
 
-public class BotMenuManagementService(ILogger<BotMenuManagementService> logger, ITelegramBotClient telegramBotClient, IBotMenuStateService botMenuStateService) : IBotMenuManagementService
+public class BotMenuManagementService(
+    ILogger<BotMenuManagementService> logger,
+    ITelegramBotClient telegramBotClient,
+    IBotSessionStateService botSessionStateService)
+    : IBotMenuManagementService
 {
     public async Task SetStartMenu(TelegramUser user, CancellationToken cancellationToken = default)
     {
         try
         {
-            var replyKeyboardMarkup = BuildMenu(MenuEnum.Start);
-            botMenuStateService.PushMenu(user.Id, MenuEnum.Start);
+            var replyKeyboardMarkup = BuildMainMenu(MenuEnum.Start);
+            botSessionStateService.PushMenu(user.Id, MenuEnum.Start);
 
             await telegramBotClient.SendMessage(
                 chatId: user.ChatId,
@@ -34,8 +38,8 @@ public class BotMenuManagementService(ILogger<BotMenuManagementService> logger, 
     {
         try
         {
-            var replyKeyboardMarkup = BuildMenu(MenuEnum.Groups);
-            botMenuStateService.PushMenu(user.Id, MenuEnum.Start);
+            var replyKeyboardMarkup = BuildMainMenu(MenuEnum.Groups);
+            botSessionStateService.PushMenu(user.Id, MenuEnum.Groups);
             
             await telegramBotClient.SendMessage(
                 chatId: user.ChatId,
@@ -54,8 +58,8 @@ public class BotMenuManagementService(ILogger<BotMenuManagementService> logger, 
     {
         try
         {
-            var replyKeyboardMarkup = BuildMenu(MenuEnum.Budgets);
-            botMenuStateService.PushMenu(user.Id, MenuEnum.Start);
+            var replyKeyboardMarkup = BuildMainMenu(MenuEnum.Budgets);
+            botSessionStateService.PushMenu(user.Id, MenuEnum.Budgets);
             
             await telegramBotClient.SendMessage(
                 chatId: user.ChatId,
@@ -74,7 +78,8 @@ public class BotMenuManagementService(ILogger<BotMenuManagementService> logger, 
     {
         try
         {
-            var previousMenu = botMenuStateService.PopMenu(user.Id);
+            var previousMenu = botSessionStateService.PopMenu(user.Id);
+            botSessionStateService.ClearUserOperation(user.Id);
 
             switch (previousMenu)
             {
@@ -95,21 +100,36 @@ public class BotMenuManagementService(ILogger<BotMenuManagementService> logger, 
         }
     }
     
-    private ReplyKeyboardMarkup BuildMenu(MenuEnum menu)
+    private ReplyKeyboardMarkup BuildMainMenu(MenuEnum menu)
     {
         var keyboard = menu switch
         {
             MenuEnum.Start => new[]
             {
-                new KeyboardButton[] { StartMenuEnum.Groups.ToString(), StartMenuEnum.Budgets.ToString() }
+                new KeyboardButton[]
+                {
+                    StartMenuEnum.Groups.ToString(), 
+                    StartMenuEnum.Budgets.ToString()
+                }
             },
             MenuEnum.Groups => new[]
             {
-                new KeyboardButton[] { "Group 1", "Group 2", MenuEnum.Back.ToString() }
+                new KeyboardButton[]
+                {
+                    GroupMenuEnum.AddGroup.ToString(), 
+                    GroupMenuEnum.EditGroup.ToString(),
+                    GroupMenuEnum.InviteToGroup.ToString(), 
+                    GroupMenuEnum.ListMyGroups.ToString(),
+                    MenuEnum.Back.ToString()
+                }
             },
             MenuEnum.Budgets => new[]
             {
-                new KeyboardButton[] { "Budget 1", "Budget 2", MenuEnum.Back.ToString() }
+                new KeyboardButton[] { BudgetMenuEnum.AddBudget.ToString(), 
+                    BudgetMenuEnum.EditBudget.ToString(),
+                    BudgetMenuEnum.ListMyBudgets.ToString(),
+                    MenuEnum.Back.ToString(),
+                }
             },
             _ => new[]
             {
