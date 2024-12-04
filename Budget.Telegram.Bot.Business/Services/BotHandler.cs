@@ -72,10 +72,22 @@ public class BotHandler(
                                 var callbackData = update.CallbackQuery.Data;
                                 
                                 await botGroupManagementService.HandleEditGroup(_currentUser, callbackData);
+                                
+                                return;
                             }
                             
                             await botGroupManagementService.HandleEditGroup(_currentUser, update.Message.Text);
                             
+                            return;
+                        case UserOperationsEnum.ChoosingEditGroup:
+                            if (update.Type == UpdateType.CallbackQuery)
+                            {
+                                var callbackData = update.CallbackQuery.Data;
+                                
+                                await botGroupManagementService.HandleEditGroup(_currentUser, callbackData);
+                                
+                                return;
+                            }
                             return;
                     }
                     break;
@@ -130,7 +142,17 @@ public class BotHandler(
     {
         try
         {
-            var user = update.Message?.From;
+            User user = null;
+            
+            if (update.Message?.From != null)
+            {
+                user = update.Message?.From;
+            }
+            else if (update.CallbackQuery?.From != null)
+            {
+                user = update.CallbackQuery?.From;
+            }
+            
             if (user == null)
                 throw new ArgumentNullException($"{nameof(HandleUpdate)} | User is not found");
                 
@@ -141,7 +163,7 @@ public class BotHandler(
                 LastName = user.LastName,
                 UserName = user.Username,
                 LanguageCode = user.LanguageCode,
-                ChatId = update.Message.Chat.Id
+                ChatId = update.Message?.Chat.Id == null ? update.CallbackQuery.Message.Chat.Id : update.Message.Chat.Id,
             });
                 
             if (!userExist)
