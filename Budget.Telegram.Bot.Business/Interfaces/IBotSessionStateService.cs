@@ -10,4 +10,7 @@ public interface IBotSessionStateService
     void SetUserOperation(long userId, UserOperationsEnum operation);
     UserOperationsEnum? GetCurrentUserOperation(long userId);
     void ClearUserOperation(long userId);
+    void PushUserChosenGroup(long userId, long groupId);
+    long GetUserChosenGroup(long userId);
+    void RemoveUserChosenGroup(long userId);
 }

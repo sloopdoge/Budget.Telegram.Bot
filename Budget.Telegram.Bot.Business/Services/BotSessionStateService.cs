@@ -7,6 +7,7 @@ public class BotSessionStateService : IBotSessionStateService
 {
     private readonly Dictionary<long, Stack<MenuEnum>> _menuHistory = new();
     private readonly Dictionary<long, UserOperationsEnum> _userOperations = new();
+    private readonly Dictionary<long, long> _chosenGroups = new();
 
     public void PushMenu(long userId, MenuEnum menu)
     {
@@ -42,4 +43,8 @@ public class BotSessionStateService : IBotSessionStateService
 
     public void ClearUserOperation(long userId) =>
         _userOperations.Remove(userId);
+    
+    public void PushUserChosenGroup(long userId, long groupId) => _chosenGroups.Add(userId, groupId);
+    public long GetUserChosenGroup(long userId) => _chosenGroups[userId];
+    public void RemoveUserChosenGroup(long userId) => _chosenGroups.Remove(userId);
 }

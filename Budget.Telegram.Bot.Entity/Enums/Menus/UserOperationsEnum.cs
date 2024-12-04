@@ -7,5 +7,7 @@ public enum UserOperationsEnum
     EditGroup,
     ChoosingEditGroup,
     InviteToGroup,
+    ChoosingInviteGroup,
+    ListingGroups,
     AddBudget,
 }

@@ -53,6 +53,7 @@ public class BotHandler(
                         case UserOperationsEnum.AddGroup:
                             if (string.Equals(update.Message.Text, "Cancel"))
                             {
+                                botSessionStateService.ClearUserOperation(_currentUser.Id);
                                 await botMenuManagementService.SetGroupMenu(_currentUser);
                                 return;
                             }
@@ -63,6 +64,7 @@ public class BotHandler(
                         case UserOperationsEnum.EditGroup:
                             if (string.Equals(update.Message.Text, "Cancel"))
                             {
+                                botSessionStateService.ClearUserOperation(_currentUser.Id);
                                 await botMenuManagementService.SetGroupMenu(_currentUser);
                                 return;
                             }
@@ -85,6 +87,34 @@ public class BotHandler(
                                 var callbackData = update.CallbackQuery.Data;
                                 
                                 await botGroupManagementService.HandleEditGroup(_currentUser, callbackData);
+                                
+                                return;
+                            }
+                            return;
+                        case UserOperationsEnum.InviteToGroup:
+                            if (string.Equals(update.Message.Text, "Cancel"))
+                            {
+                                botSessionStateService.ClearUserOperation(_currentUser.Id);
+                                await botMenuManagementService.SetGroupMenu(_currentUser);
+                                return;
+                            }
+                            
+                            await botGroupManagementService.HandleInviteGroup(_currentUser, update.Message.Text);
+                            
+                            return;
+                        case UserOperationsEnum.ChoosingInviteGroup:
+                            if (update.Message?.Text != null && string.Equals(update.Message?.Text, "Cancel"))
+                            {
+                                botSessionStateService.ClearUserOperation(_currentUser.Id);
+                                await botMenuManagementService.SetGroupMenu(_currentUser);
+                                return;
+                            }
+                            
+                            if (update.Type == UpdateType.CallbackQuery)
+                            {
+                                var callbackData = update.CallbackQuery.Data;
+                                
+                                await botGroupManagementService.HandleInviteGroup(_currentUser, callbackData, UpdateType.CallbackQuery);
                                 
                                 return;
                             }
@@ -114,7 +144,7 @@ public class BotHandler(
                     await botGroupManagementService.HandleInviteGroup(_currentUser);
                     return;
                 case nameof(GroupMenuEnum.ListMyGroups):
-                    
+                    await botGroupManagementService.HandleListGroups(_currentUser);
                     return;
                 case nameof(BudgetMenuEnum.AddBudget):
                     

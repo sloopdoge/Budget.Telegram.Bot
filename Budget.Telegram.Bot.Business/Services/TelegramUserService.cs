@@ -23,6 +23,21 @@ public class TelegramUserService(ILogger<TelegramUserService> logger, AppDbConte
         }
     }
 
+    public async Task<TelegramUser?> FindByUsername(string name)
+    {
+        try
+        {
+            var dbUser = await dbContext.TelegramUsers.Where(tu => tu.UserName == name).FirstOrDefaultAsync();
+
+            return dbUser;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return null;
+        }
+    }
+
     public async Task<bool> CheckIfExist(TelegramUser user)
     {
         try

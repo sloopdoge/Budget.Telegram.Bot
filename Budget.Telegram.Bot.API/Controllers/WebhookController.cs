@@ -29,7 +29,7 @@ public class WebhookController : ControllerBase
     }
     
     [HttpPost]
-    public async Task HandleUpdate([FromBody] Update update)
+    public async Task<IActionResult> HandleUpdate([FromBody] Update update)
     {
         try
         {
@@ -39,10 +39,13 @@ public class WebhookController : ControllerBase
             }
 
             await _botHandler.HandleUpdate(update);
+
+            return Ok();
         }
         catch (Exception e)
         {
             Logger.LogError(e, e.Message);
+            return StatusCode(500);
         }
     }
     
