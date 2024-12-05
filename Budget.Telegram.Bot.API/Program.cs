@@ -1,8 +1,10 @@
 using Budget.Telegram.Bot.Business.Configs;
 using Budget.Telegram.Bot.Business.Interfaces;
 using Budget.Telegram.Bot.Business.Interfaces.BotManagementServices;
+using Budget.Telegram.Bot.Business.Interfaces.Helpers;
 using Budget.Telegram.Bot.Business.Services;
 using Budget.Telegram.Bot.Business.Services.BotManagementServices;
+using Budget.Telegram.Bot.Business.Services.Helpers;
 using Budget.Telegram.Bot.DataAccess;
 using Microsoft.EntityFrameworkCore;
 using Telegram.Bot;
@@ -36,6 +38,7 @@ public abstract class Program
         builder.Services.AddScoped<IBotMenuManagementService, BotMenuManagementService>();
         builder.Services.AddScoped<IBotGroupManagementService, BotGroupManagementService>();
         builder.Services.AddScoped<IBotBudgetManagementService, BotBudgetManagementService>();
+        builder.Services.AddScoped<IBotHelper, BotHelper>();
         builder.Services.AddScoped<BotHandler>();
 
         builder.Services.AddDbContext<AppDbContext>(options =>

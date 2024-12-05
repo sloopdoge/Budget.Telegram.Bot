@@ -1,7 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using Budget.Telegram.Bot.Entity.Enums;
-using Microsoft.EntityFrameworkCore;
 
 namespace Budget.Telegram.Bot.Entity.Entities;
 

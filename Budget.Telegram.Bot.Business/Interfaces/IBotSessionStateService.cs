@@ -6,9 +6,9 @@ public interface IBotSessionStateService
 {
     void PushMenu(long userId, MenuEnum menu);
     MenuEnum? PopMenu(long userId);
-    MenuEnum? GetCurrentMenu(long userId);
+    MenuEnum GetCurrentMenuOrDefault(long userId);
     void SetUserOperation(long userId, UserOperationsEnum operation);
-    UserOperationsEnum? GetCurrentUserOperation(long userId);
+    UserOperationsEnum GetCurrentUserOperationOrDefault(long userId);
     void ClearUserOperation(long userId);
     void PushUserChosenGroup(long userId, long groupId);
     long GetUserChosenGroup(long userId);

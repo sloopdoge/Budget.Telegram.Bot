@@ -28,18 +28,14 @@ public class BotSessionStateService : IBotSessionStateService
         return MenuEnum.Start;
     }
 
-    public MenuEnum? GetCurrentMenu(long userId)
-    {
-        return _menuHistory.ContainsKey(userId) && _menuHistory[userId].Count > 0
-            ? _menuHistory[userId].Peek()
-            : MenuEnum.Start;
-    }
+    public MenuEnum GetCurrentMenuOrDefault(long userId) =>
+        _menuHistory.TryGetValue(userId, out var stack) && stack.Any() ? stack.Peek() : MenuEnum.Start;
     
     public void SetUserOperation(long userId, UserOperationsEnum operation) =>
         _userOperations[userId] = operation;
 
-    public UserOperationsEnum? GetCurrentUserOperation(long userId) =>
-        _userOperations.ContainsKey(userId) ? _userOperations[userId] : null;
+    public UserOperationsEnum GetCurrentUserOperationOrDefault(long userId) =>
+        _userOperations.TryGetValue(userId, out var operation) ? operation : UserOperationsEnum.None;
 
     public void ClearUserOperation(long userId) =>
         _userOperations.Remove(userId);

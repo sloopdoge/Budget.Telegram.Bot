@@ -1,24 +1,20 @@
-﻿using Budget.Telegram.Bot.Business.Configs;
-using Budget.Telegram.Bot.Business.Interfaces;
+﻿using Budget.Telegram.Bot.Business.Interfaces;
 using Budget.Telegram.Bot.Business.Interfaces.BotManagementServices;
 using Budget.Telegram.Bot.Entity.Entities;
 using Budget.Telegram.Bot.Entity.Enums.Menus;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
 
 namespace Budget.Telegram.Bot.Business.Services;
 
 public class BotHandler(
     ILogger<BotHandler> logger, 
     ITelegramBotClient botClient,
-    ITelegramUserService telegramUserService, 
-    IBotMenuManagementService botMenuManagementService, 
-    IBotSessionStateService botSessionStateService,
-    IBotGroupManagementService botGroupManagementService,
-    IBotBudgetManagementService botBudgetManagementService,
-    BotMenusConfig botMenusConfig)
+    ITelegramUserService userService, 
+    IBotMenuManagementService menuManagementService, 
+    IBotSessionStateService sessionStateService,
+    IBotGroupManagementService groupManagementService)
 {
     private TelegramUser? _currentUser;
     private MenuEnum? _currentMainMenu;
@@ -29,182 +25,149 @@ public class BotHandler(
         try
         {
             if (update == null)
-                throw new ArgumentNullException(nameof(update));
-            
+                throw new ArgumentNullException(nameof(update), "Update cannot be null.");
+
             await InitCurrentUser(update);
-            InitCurrentMenu(update);
-            InitCurrentOperation(update);
-            
+            InitCurrentMenu();
+            InitCurrentOperation();
+
             if (_currentUser == null)
-                throw new Exception($"{nameof(HandleUpdate)} | User not found");
-            
-            if (string.Equals($"/start", update.Message?.Text))
-            {
-                await botMenuManagementService.SetStartMenu(_currentUser);
-                
+                throw new InvalidOperationException("User not found during update handling.");
+
+            if (HandleStartCommand(update.Message?.Text))
                 return;
-            }
 
-            switch (_currentMainMenu)
-            {
-                case MenuEnum.Groups:
-                    switch (_currentUserOperation)
-                    {
-                        case UserOperationsEnum.AddGroup:
-                            if (string.Equals(update.Message.Text, "Cancel"))
-                            {
-                                botSessionStateService.ClearUserOperation(_currentUser.Id);
-                                await botMenuManagementService.SetGroupMenu(_currentUser);
-                                return;
-                            }
-                        
-                            await botGroupManagementService.HandleAddGroup(_currentUser, update.Message.Text);
-                            break;
-                        
-                        case UserOperationsEnum.EditGroup:
-                            if (string.Equals(update.Message.Text, "Cancel"))
-                            {
-                                botSessionStateService.ClearUserOperation(_currentUser.Id);
-                                await botMenuManagementService.SetGroupMenu(_currentUser);
-                                return;
-                            }
-
-                            if (update.Type == UpdateType.CallbackQuery)
-                            {
-                                var callbackData = update.CallbackQuery.Data;
-                                
-                                await botGroupManagementService.HandleEditGroup(_currentUser, callbackData);
-                                
-                                return;
-                            }
-                            
-                            await botGroupManagementService.HandleEditGroup(_currentUser, update.Message.Text);
-                            
-                            return;
-                        case UserOperationsEnum.ChoosingEditGroup:
-                            if (update.Type == UpdateType.CallbackQuery)
-                            {
-                                var callbackData = update.CallbackQuery.Data;
-                                
-                                await botGroupManagementService.HandleEditGroup(_currentUser, callbackData);
-                                
-                                return;
-                            }
-                            return;
-                        case UserOperationsEnum.InviteToGroup:
-                            if (string.Equals(update.Message.Text, "Cancel"))
-                            {
-                                botSessionStateService.ClearUserOperation(_currentUser.Id);
-                                await botMenuManagementService.SetGroupMenu(_currentUser);
-                                return;
-                            }
-                            
-                            await botGroupManagementService.HandleInviteGroup(_currentUser, update.Message.Text);
-                            
-                            return;
-                        case UserOperationsEnum.ChoosingInviteGroup:
-                            if (update.Message?.Text != null && string.Equals(update.Message?.Text, "Cancel"))
-                            {
-                                botSessionStateService.ClearUserOperation(_currentUser.Id);
-                                await botMenuManagementService.SetGroupMenu(_currentUser);
-                                return;
-                            }
-                            
-                            if (update.Type == UpdateType.CallbackQuery)
-                            {
-                                var callbackData = update.CallbackQuery.Data;
-                                
-                                await botGroupManagementService.HandleInviteGroup(_currentUser, callbackData, UpdateType.CallbackQuery);
-                                
-                                return;
-                            }
-                            return;
-                    }
-                    break;
-            }
-
-            switch (update.Message?.Text)
-            {
-                case nameof(MenuEnum.Back):
-                    await botMenuManagementService.HandleGoBack(_currentUser);
-                    return;
-                case nameof(StartMenuEnum.Groups):
-                    await botMenuManagementService.SetGroupMenu(_currentUser);
-                    return;
-                case nameof(StartMenuEnum.Budgets):
-                    await botMenuManagementService.SetBudgetMenu(_currentUser);
-                    return;
-                case nameof(GroupMenuEnum.AddGroup):
-                    await botGroupManagementService.HandleAddGroup(_currentUser);
-                    return;
-                case nameof(GroupMenuEnum.EditGroup):
-                    await botGroupManagementService.HandleEditGroup(_currentUser);
-                    return;
-                case nameof(GroupMenuEnum.InviteToGroup):
-                    await botGroupManagementService.HandleInviteGroup(_currentUser);
-                    return;
-                case nameof(GroupMenuEnum.ListMyGroups):
-                    await botGroupManagementService.HandleListGroups(_currentUser);
-                    return;
-                case nameof(BudgetMenuEnum.AddBudget):
-                    
-                    return;
-            }
+            await HandleMenuActions(update);
         }
-        catch (Exception e)
+        catch (Exception ex)
         {
-            logger.LogError(e, e.Message, e.StackTrace);
-            await botClient.SendMessage(_currentUser.ChatId, $"Sorry something went wrong");
+            logger.LogError(ex, "Error in HandleUpdate.");
+            await botClient.SendMessage(_currentUser?.ChatId ?? 0, "An error occurred. Please try again.");
         }
     }
 
-    private void InitCurrentOperation(Update update)
+    private async Task HandleMenuActions(Update update)
     {
-        _currentUserOperation = botSessionStateService.GetCurrentUserOperation(_currentUser.Id);
+        if (string.Equals(update.Message?.Text, MenuEnum.Back.ToString()))
+        {
+            await menuManagementService.HandleGoBack(_currentUser);
+            return;
+        }
+        
+        if (_currentMainMenu is MenuEnum.Groups && _currentUserOperation is not UserOperationsEnum.None)
+        {
+            await HandleGroupMenuActions(update);
+            return;
+        }
+
+        switch (update.Message?.Text)
+        {
+            case nameof(StartMenuEnum.Groups):
+                await menuManagementService.SetGroupMenu(_currentUser);
+                break;
+            case nameof(StartMenuEnum.Budgets):
+                await menuManagementService.SetBudgetMenu(_currentUser);
+                break;
+            case nameof(GroupMenuEnum.AddGroup):
+                await groupManagementService.HandleAddGroup(_currentUser);
+                break;
+            case nameof(GroupMenuEnum.EditGroup):
+                await groupManagementService.HandleEditGroup(_currentUser);
+                break;
+            case nameof(GroupMenuEnum.InviteToGroup):
+                await groupManagementService.HandleInviteGroup(_currentUser);
+                break;
+            case nameof(GroupMenuEnum.ListMyGroups):
+                await groupManagementService.HandleListGroups(_currentUser);
+                break;
+            case nameof(BudgetMenuEnum.AddBudget):
+                // Future Budget handling logic
+                break;
+            default:
+                logger.LogWarning($"Unhandled command: {update.Message?.Text}");
+                await botClient.SendMessage(_currentUser.ChatId, "Unknown command. Please try again.");
+                await menuManagementService.SetStartMenu(_currentUser);
+                break;
+        }
     }
 
-    private void InitCurrentMenu(Update update)
+    private async Task HandleGroupMenuActions(Update update)
     {
-        _currentMainMenu = botSessionStateService.GetCurrentMenu(_currentUser.Id);
+        if (_currentUserOperation == null)
+        {
+            logger.LogWarning("No operation set for the current user.");
+            return;
+        }
+
+        switch (_currentUserOperation)
+        {
+            case UserOperationsEnum.AddGroup:
+                await HandleUserOperation(update, groupManagementService.HandleAddGroup);
+                break;
+            case UserOperationsEnum.EditGroup:
+            case UserOperationsEnum.ChoosingEditGroup:
+                await HandleUserOperation(update, groupManagementService.HandleEditGroup);
+                break;
+            case UserOperationsEnum.InviteToGroup:
+            case UserOperationsEnum.ChoosingInviteGroup:
+                await HandleUserOperation(update, groupManagementService.HandleInviteGroup);
+                break;
+            default:
+                logger.LogWarning($"Unhandled operation: {_currentUserOperation}");
+                break;
+        }
     }
+
+    private async Task HandleUserOperation(Update update, Func<TelegramUser, string, CancellationToken, Task> operationHandler)
+    {
+        var messageText = update.Message?.Text ?? update.CallbackQuery?.Data ?? string.Empty;
+
+        if (string.Equals(messageText, "Cancel", StringComparison.OrdinalIgnoreCase))
+        {
+            sessionStateService.ClearUserOperation(_currentUser.Id);
+            await menuManagementService.SetGroupMenu(_currentUser);
+            return;
+        }
+
+        await operationHandler(_currentUser, messageText, default);
+    }
+
+    private bool HandleStartCommand(string? messageText)
+    {
+        if (!string.Equals("/start", messageText, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        menuManagementService.SetStartMenu(_currentUser);
+        return true;
+    }
+
+    private void InitCurrentMenu() =>
+        _currentMainMenu = sessionStateService.GetCurrentMenuOrDefault(_currentUser.Id);
+
+    private void InitCurrentOperation() =>
+        _currentUserOperation = sessionStateService.GetCurrentUserOperationOrDefault(_currentUser.Id);
 
     private async Task InitCurrentUser(Update update)
     {
-        try
+        var user = update.Message?.From ?? update.CallbackQuery?.From;
+
+        if (user == null)
+            throw new ArgumentNullException("User information is missing in the update.");
+
+        if (!await userService.CheckIfExist(new TelegramUser
         {
-            User user = null;
-            
-            if (update.Message?.From != null)
-            {
-                user = update.Message?.From;
-            }
-            else if (update.CallbackQuery?.From != null)
-            {
-                user = update.CallbackQuery?.From;
-            }
-            
-            if (user == null)
-                throw new ArgumentNullException($"{nameof(HandleUpdate)} | User is not found");
-                
-            var userExist = await telegramUserService.CheckIfExist(new TelegramUser()
-            {
-                Id = user.Id,
-                FirstName = user.FirstName,
-                LastName = user.LastName,
-                UserName = user.Username,
-                LanguageCode = user.LanguageCode,
-                ChatId = update.Message?.Chat.Id == null ? update.CallbackQuery.Message.Chat.Id : update.Message.Chat.Id,
-            });
-                
-            if (!userExist)
-                throw new Exception($"{nameof(HandleUpdate)} | User not found");
-            
-            _currentUser = await telegramUserService.FindById(user.Id);
-        }
-        catch (Exception e)
+            Id = user.Id,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            UserName = user.Username,
+            LanguageCode = user.LanguageCode,
+            ChatId = update.Message?.Chat.Id ?? update.CallbackQuery?.Message?.Chat.Id ?? 0
+        }))
         {
-            logger.LogError(e, e.Message, e.StackTrace);
-            throw;
+            throw new InvalidOperationException("User not found or unauthorized.");
         }
+
+        _currentUser = await userService.FindById(user.Id);
     }
+
 }

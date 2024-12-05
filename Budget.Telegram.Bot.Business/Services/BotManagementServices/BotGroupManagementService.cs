@@ -1,96 +1,53 @@
 ﻿using Budget.Telegram.Bot.Business.Interfaces;
 using Budget.Telegram.Bot.Business.Interfaces.BotManagementServices;
+using Budget.Telegram.Bot.Business.Interfaces.Helpers;
 using Budget.Telegram.Bot.Entity.Entities;
 using Budget.Telegram.Bot.Entity.Enums.Menus;
 using Microsoft.Extensions.Logging;
-using Telegram.Bot;
-using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Budget.Telegram.Bot.Business.Services.BotManagementServices;
 
 public class BotGroupManagementService(
-    ILogger<BotGroupManagementService> logger, 
-    ITelegramBotClient botClient,
-    ITelegramUserService telegramUserService,
-    IBotSessionStateService botSessionStateService,
-    IBotMenuManagementService botMenuManagementService,
-    IUsersGroupService groupService) : IBotGroupManagementService
+    ILogger<BotGroupManagementService> logger,
+    ITelegramUserService userService,
+    IBotSessionStateService sessionStateService,
+    IBotMenuManagementService menuManagementService,
+    IUsersGroupService groupService,
+    IBotHelper botHelper) : IBotGroupManagementService
 {
     public async Task HandleAddGroup(TelegramUser user, string groupTitle = "", CancellationToken cancellationToken = default)
     {
         try
         {
-            if (botSessionStateService.GetCurrentMenu(user.Id) is MenuEnum.Groups 
-                && botSessionStateService.GetCurrentUserOperation(user.Id) is UserOperationsEnum.AddGroup)
+            if (sessionStateService.GetCurrentUserOperationOrDefault(user.Id) != UserOperationsEnum.AddGroup)
             {
-                if (string.IsNullOrEmpty(groupTitle))
-                {
-                    await botClient.SendMessage(
-                        chatId: user.ChatId,
-                        text: "Group title cannot be empty. Please enter a valid group title.", 
-                        cancellationToken: cancellationToken
-                    );
-                
-                    return;
-                }
-                
-                var newGroup = new UsersGroup()
-                {
-                    Title = groupTitle,
-                    Users = new List<TelegramUser> { user }
-                };
-                
-                var isCreated = await groupService.Create(newGroup);
-
-                if (isCreated)
-                {
-                    await botClient.SendMessage(
-                        chatId: user.ChatId,
-                        text: $"Group {newGroup.Title} has been created", 
-                        cancellationToken: cancellationToken
-                    );
-                    
-                    botSessionStateService.ClearUserOperation(user.Id);
-                    
-                    return;
-                }
-                
-                await botClient.SendMessage(
-                    chatId: user.ChatId,
-                    text: "Something went wrong. Try again.", 
-                    cancellationToken: cancellationToken
-                );
-                
-                botSessionStateService.ClearUserOperation(user.Id);
-                await botMenuManagementService.SetGroupMenu(user, cancellationToken);
-                
+                sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.AddGroup);
+                await botHelper.SendMessage(user.ChatId, "Enter the group name:", new ReplyKeyboardMarkup("Cancel"), cancellationToken);
                 return;
             }
 
-            var keyboard = new KeyboardButton[]
+            if (string.IsNullOrEmpty(groupTitle))
             {
-                "Cancel"
-            };
-            var replyKeyboardMarkup = new ReplyKeyboardMarkup(keyboard){ ResizeKeyboard = true };
+                await botHelper.SendMessage(user.ChatId, "Group title cannot be empty. Try again.", cancellationToken: cancellationToken);
+                return;
+            }
 
-            if (botSessionStateService.GetCurrentMenu(user.Id) is not MenuEnum.Groups)
-                botSessionStateService.PushMenu(user.Id, MenuEnum.Groups);
-            
-            botSessionStateService.SetUserOperation(user.Id, UserOperationsEnum.AddGroup);
+            var isCreated = await groupService.Create(new UsersGroup { Title = groupTitle, Users = new List<TelegramUser> { user } });
 
-            await botClient.SendMessage(
-                chatId: user.ChatId,
-                text: "Enter the name of the group to add:",
-                replyMarkup: replyKeyboardMarkup,
-                cancellationToken: cancellationToken
-                );
+            var response = isCreated
+                ? $"Group '{groupTitle}' created successfully."
+                : "Failed to create group. Try again.";
+            await botHelper.SendMessage(user.ChatId, response, cancellationToken: cancellationToken);
+
+            sessionStateService.ClearUserOperation(user.Id);
+            await menuManagementService.SetGroupMenu(user, cancellationToken);
         }
-        catch (Exception e)
+        catch (Exception ex)
         {
-            logger.LogError(e, e.Message, e.StackTrace);
-            throw;
+            logger.LogError(ex, "Error handling AddGroup operation.");
+            await botHelper.SendMessage(user.ChatId, "Something went wrong. Please try again later.", cancellationToken: cancellationToken);
+            await menuManagementService.SetGroupMenu(user, cancellationToken);
         }
     }
 
@@ -98,327 +55,208 @@ public class BotGroupManagementService(
     {
         try
         {
-            if (botSessionStateService.GetCurrentMenu(user.Id) is MenuEnum.Groups)
+            switch (sessionStateService.GetCurrentUserOperationOrDefault(user.Id))
             {
-                UsersGroup? editGroup;
-                
-                switch (botSessionStateService.GetCurrentUserOperation(user.Id))
-                {
-                    case UserOperationsEnum.ChoosingEditGroup:
-                        if (long.TryParse(message, out long editGroupId))
+                case UserOperationsEnum.ChoosingEditGroup:
+                    if (long.TryParse(message, out var groupId))
+                    {
+                        var group = await groupService.FindById(groupId);
+                        if (group == null)
                         {
-                            editGroup = await groupService.FindById(editGroupId);
-                            if (editGroup == null)
-                            {
-                                await botClient.SendMessage(
-                                    chatId: user.ChatId,
-                                    text: "Group not found. Try again.", 
-                                    cancellationToken: cancellationToken
-                                );
-                
-                                botSessionStateService.ClearUserOperation(user.Id);
-                                await botMenuManagementService.SetGroupMenu(user, cancellationToken);
-                            }
-                            
-                            botSessionStateService.PushUserChosenGroup(user.Id, editGroup.Id);
-
-                            if (botSessionStateService.GetCurrentMenu(user.Id) is not MenuEnum.Groups)
-                                botSessionStateService.PushMenu(user.Id, MenuEnum.Groups);
-                        
-                            botSessionStateService.SetUserOperation(user.Id, UserOperationsEnum.EditGroup);
-
-                            await botClient.SendMessage(
-                                chatId: user.ChatId,
-                                text: $"Enter new title of the group {editGroup?.Title}:",
-                                cancellationToken: cancellationToken);
-                        }
-                        return;
-                    case UserOperationsEnum.EditGroup:
-                        editGroup = await groupService.FindById(botSessionStateService.GetUserChosenGroup(user.Id));
-                        if (editGroup == null)
-                        {
-                            await botClient.SendMessage(
-                                chatId: user.ChatId,
-                                text: "Group not found. Try again.", 
-                                cancellationToken: cancellationToken
-                            );
-                
-                            botSessionStateService.ClearUserOperation(user.Id);
-                            await botMenuManagementService.SetGroupMenu(user, cancellationToken);
-                            
+                            await botHelper.SendMessage(user.ChatId, "Group not found. Try again.", cancellationToken: cancellationToken);
+                            sessionStateService.ClearUserOperation(user.Id);
+                            await menuManagementService.SetGroupMenu(user, cancellationToken);
                             return;
                         }
-                        
-                        if (string.IsNullOrEmpty(message))
-                        {
-                            await botClient.SendMessage(
-                                chatId: user.ChatId,
-                                text: "Group title cannot be empty. Please enter a valid group title.", 
-                                cancellationToken: cancellationToken
-                            );
-                
-                            return;
-                        }
-                        
-                        var newGroup = editGroup;
-                        editGroup.Title = message;
-                        
-                        var isUpdated = await groupService.Update(editGroup, newGroup);
-                        
-                        if (isUpdated)
-                        {
-                            await botClient.SendMessage(
-                                chatId: user.ChatId,
-                                text: $"Group {newGroup.Title} has been updated", 
-                                cancellationToken: cancellationToken
-                            );
-                    
-                            botSessionStateService.ClearUserOperation(user.Id);
-                            botSessionStateService.RemoveUserChosenGroup(user.Id);
-                    
-                            return;
-                        }
-                
-                        await botClient.SendMessage(
-                            chatId: user.ChatId,
-                            text: "Something went wrong. Try again.", 
-                            cancellationToken: cancellationToken
-                        );
-                
-                        botSessionStateService.ClearUserOperation(user.Id);
-                        await botMenuManagementService.SetGroupMenu(user, cancellationToken);
-                        
+
+                        sessionStateService.PushUserChosenGroup(user.Id, groupId);
+                        sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.EditGroup);
+
+                        await botHelper.SendMessage(user.ChatId, $"Enter new title for the group '{group.Title}':", new ReplyKeyboardMarkup("Cancel"), cancellationToken: cancellationToken);
                         return;
-                    default:
-                        if (botSessionStateService.GetCurrentMenu(user.Id) is not MenuEnum.Groups)
-                            botSessionStateService.PushMenu(user.Id, MenuEnum.Groups);
-                        
-                        botSessionStateService.SetUserOperation(user.Id, UserOperationsEnum.ChoosingEditGroup);
+                    }
 
-                        var userGroups = await groupService.GetUserGroups(user.Id);
-                        
-                        var inlineKeyboardButtons = userGroups
-                            .Select(userGroup => InlineKeyboardButton.WithCallbackData(userGroup.Title, userGroup.Id.ToString()))
-                            .Chunk(1)
-                            .Select(chunk => chunk.ToArray())
-                            .ToList();
+                    await botHelper.SendMessage(user.ChatId, "Invalid group selection. Try again.", cancellationToken: cancellationToken);
+                    break;
 
-                        var inlineKeyboard = new InlineKeyboardMarkup(inlineKeyboardButtons);
-
-                        await botClient.SendMessage(
-                            chatId: user.ChatId,
-                            text: $"Group lists:",
-                            replyMarkup: inlineKeyboard, 
-                            cancellationToken: cancellationToken
-                            );
-                        
+                case UserOperationsEnum.EditGroup:
+                    var editGroup = await groupService.FindById(sessionStateService.GetUserChosenGroup(user.Id));
+                    if (editGroup == null)
+                    {
+                        await botHelper.SendMessage(user.ChatId, "Group not found. Try again.", cancellationToken: cancellationToken);
+                        sessionStateService.ClearUserOperation(user.Id);
+                        await menuManagementService.SetGroupMenu(user, cancellationToken);
                         return;
-                }
+                    }
+
+                    if (string.IsNullOrEmpty(message))
+                    {
+                        await botHelper.SendMessage(user.ChatId, "Group title cannot be empty. Try again.", new ReplyKeyboardMarkup("Cancel"), cancellationToken: cancellationToken);
+                        return;
+                    }
+
+                    var editedGroup = editGroup;
+                    editedGroup.Title = message;
+                    var isUpdated = await groupService.Update(editGroup, editedGroup);
+
+                    var updateResponse = isUpdated
+                        ? $"Group '{editGroup.Title}' updated successfully."
+                        : "Failed to update the group. Try again.";
+                    await botHelper.SendMessage(user.ChatId, updateResponse, cancellationToken: cancellationToken);
+
+                    sessionStateService.ClearUserOperation(user.Id);
+                    sessionStateService.RemoveUserChosenGroup(user.Id);
+                    await menuManagementService.SetGroupMenu(user, cancellationToken);
+                    break;
+
+                default:
+                    sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.ChoosingEditGroup);
+
+                    var userGroups = await groupService.GetUserGroups(user.Id);
+                    var inlineKeyboard = botHelper.BuildInlineKeyboard(userGroups
+                        .Select(g => new[] { InlineKeyboardButton.WithCallbackData(g.Title, g.Id.ToString()) }));
+
+                    await botHelper.SendMessage(user.ChatId, "Select a group to edit:", inlineKeyboard, cancellationToken);
+                    break;
             }
         }
-        catch (Exception e)
+        catch (Exception ex)
         {
-            logger.LogError(e, e.Message, e.StackTrace);
-            throw;
+            logger.LogError(ex, "Error handling EditGroup operation.");
+            await botHelper.SendMessage(user.ChatId, "Something went wrong. Please try again later.", cancellationToken: cancellationToken);
+            await menuManagementService.SetGroupMenu(user, cancellationToken);
         }
     }
 
-    public async Task HandleInviteGroup(TelegramUser user, string message = "", UpdateType messageType = UpdateType.Message, CancellationToken cancellationToken = default)
+    public async Task HandleInviteGroup(TelegramUser user, string message = "", CancellationToken cancellationToken = default)
     {
         try
         {
-            if (botSessionStateService.GetCurrentMenu(user.Id) is not MenuEnum.Groups)
+            var currentOperation = sessionStateService.GetCurrentUserOperationOrDefault(user.Id);
+
+            if (currentOperation != UserOperationsEnum.ChoosingInviteGroup && currentOperation != UserOperationsEnum.InviteToGroup)
             {
-                botSessionStateService.PushMenu(user.Id, MenuEnum.Groups);
-            }
-            
-            if (botSessionStateService.GetCurrentMenu(user.Id) is MenuEnum.Groups && 
-                (botSessionStateService.GetCurrentUserOperation(user.Id) is not UserOperationsEnum.ChoosingInviteGroup and not UserOperationsEnum.InviteToGroup || 
-                 botSessionStateService.GetCurrentUserOperation(user.Id) == null))
-            {
-                botSessionStateService.SetUserOperation(user.Id, UserOperationsEnum.ChoosingInviteGroup);
-                
+                sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.ChoosingInviteGroup);
+
                 var userGroups = await groupService.GetUserGroups(user.Id);
+                if (!userGroups.Any())
+                {
+                    await botHelper.SendMessage(user.ChatId, "You have no groups to invite users to.", cancellationToken: cancellationToken);
+                    await menuManagementService.SetGroupMenu(user, cancellationToken);
+                    return;
+                }
 
-                var inlineKeyboardButtons = userGroups
-                    .Select(userGroup =>
-                        InlineKeyboardButton.WithCallbackData(userGroup.Title, userGroup.Id.ToString()))
-                    .Chunk(1)
-                    .Select(chunk => chunk.ToArray())
-                    .ToList();
+                var inlineKeyboard = botHelper.BuildInlineKeyboard(userGroups
+                    .Select(g => new[] { InlineKeyboardButton.WithCallbackData(g.Title, g.Id.ToString()) }));
 
-                var inlineKeyboard = new InlineKeyboardMarkup(inlineKeyboardButtons);
-
-                await botClient.SendMessage(
-                    chatId: user.ChatId,
-                    text: $"Inviting to group",
-                    replyMarkup: new ReplyKeyboardMarkup(new KeyboardButton("Cancel")){ResizeKeyboard = true},
-                    cancellationToken: cancellationToken
-                );
-                await botClient.SendMessage(
-                    chatId: user.ChatId,
-                    text: $"Select a group in which you want to invite:",
-                    replyMarkup: inlineKeyboard,
-                    cancellationToken: cancellationToken
-                );
-                
-                
+                await botHelper.SendMessage(user.ChatId, "Invite to group", new ReplyKeyboardMarkup("Cancel"), cancellationToken);
+                await botHelper.SendMessage(user.ChatId, "Select a group to invite a user:", inlineKeyboard, cancellationToken);
                 return;
             }
 
-            if (botSessionStateService.GetCurrentMenu(user.Id) is MenuEnum.Groups  &&
-                botSessionStateService.GetCurrentUserOperation(user.Id) is UserOperationsEnum.ChoosingInviteGroup)
+            if (currentOperation == UserOperationsEnum.ChoosingInviteGroup)
             {
-                botSessionStateService.SetUserOperation(user.Id, UserOperationsEnum.InviteToGroup);
-
-                if (long.TryParse(message, out long groupId))
+                if (long.TryParse(message, out var groupId))
                 {
                     var chosenGroup = await groupService.FindById(groupId);
                     if (chosenGroup == null)
                     {
-                        await botClient.SendMessage(
-                            chatId: user.ChatId,
-                            text: "Group not found. Try again.", 
-                            cancellationToken: cancellationToken
-                        );
-                
-                        botSessionStateService.ClearUserOperation(user.Id);
-                        await botMenuManagementService.SetGroupMenu(user, cancellationToken);
-                        
+                        await botHelper.SendMessage(user.ChatId, "Group not found. Try again.", cancellationToken: cancellationToken);
+                        await menuManagementService.SetGroupMenu(user, cancellationToken);
                         return;
                     }
-                    
-                    botSessionStateService.PushUserChosenGroup(user.Id, chosenGroup.Id);
-                    
-                    await botClient.SendMessage(
-                        chatId: user.ChatId,
-                        text: $"Send username of user you want to invite to group {chosenGroup.Title}:",
-                        cancellationToken: cancellationToken
-                        );
-                    
+
+                    sessionStateService.PushUserChosenGroup(user.Id, groupId);
+                    sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.InviteToGroup);
+
+                    await botHelper.SendMessage(user.ChatId, $"Enter the username to invite to '{chosenGroup.Title}':", new ReplyKeyboardMarkup("Cancel"), cancellationToken: cancellationToken);
                     return;
                 }
+
+                await botHelper.SendMessage(user.ChatId, "Invalid group selection. Please try again.", cancellationToken: cancellationToken);
                 return;
             }
 
-            if (botSessionStateService.GetCurrentMenu(user.Id) is MenuEnum.Groups &&
-                botSessionStateService.GetCurrentUserOperation(user.Id) is UserOperationsEnum.InviteToGroup)
+            if (currentOperation == UserOperationsEnum.InviteToGroup)
             {
-                var chosenGroup = await groupService.FindById(botSessionStateService.GetUserChosenGroup(user.Id));
+                var groupId = sessionStateService.GetUserChosenGroup(user.Id);
+                var chosenGroup = await groupService.FindById(groupId);
                 if (chosenGroup == null)
                 {
-                    await botClient.SendMessage(
-                        chatId: user.ChatId,
-                        text: "Group not found. Try again.", 
-                        cancellationToken: cancellationToken
-                    );
-                
-                    botSessionStateService.ClearUserOperation(user.Id);
-                    await botMenuManagementService.SetGroupMenu(user, cancellationToken);
-                        
+                    await botHelper.SendMessage(user.ChatId, "Group not found. Please try again.", cancellationToken: cancellationToken);
+                    await menuManagementService.SetGroupMenu(user, cancellationToken);
                     return;
                 }
 
-                var username = message.Trim('@',' ');
+                var username = message.Trim('@', ' ');
                 if (string.IsNullOrEmpty(username))
                 {
-                    await botClient.SendMessage(
-                        chatId: user.ChatId,
-                        text: "Username not correct. Try again.", 
-                        cancellationToken: cancellationToken
-                    );
-                        
+                    await botHelper.SendMessage(user.ChatId, "Invalid username. Please try again.", cancellationToken: cancellationToken);
                     return;
                 }
-                
-                var userToInvite = await telegramUserService.FindByUsername(username);
+
+                var userToInvite = await userService.FindByUsername(username);
                 if (userToInvite == null)
                 {
-                    await botClient.SendMessage(
-                        chatId: user.ChatId,
-                        text: "User not found. This user need's to authorize with me.",
-                        cancellationToken: cancellationToken
-                    );
-                      
-                    botSessionStateService.ClearUserOperation(user.Id);
-                    await botMenuManagementService.SetGroupMenu(user, cancellationToken);
-                    
+                    await botHelper.SendMessage(user.ChatId, "User not found or they have not authorized this bot. Please try again.", cancellationToken: cancellationToken);
+                    await menuManagementService.SetGroupMenu(user, cancellationToken);
                     return;
                 }
 
-                var inviteResult = await groupService.AddUser(chosenGroup.Id, userToInvite);
+                var inviteResult = await groupService.AddUser(groupId, userToInvite);
+                var inviteMessage = inviteResult
+                    ? $"User '{username}' successfully invited to '{chosenGroup.Title}'."
+                    : "Failed to invite user. Please try again.";
+
+                await botHelper.SendMessage(user.ChatId, inviteMessage, cancellationToken: cancellationToken);
+
                 if (inviteResult)
                 {
-                    await botClient.SendMessage(
-                        chatId: user.ChatId,
-                        text: $"User successfully added to group {chosenGroup.Title}.",
-                        cancellationToken: cancellationToken
-                    );
-
-                    await botClient.SendMessage(
-                        chatId: userToInvite.ChatId,
-                        text: $"You have been invited to the group {chosenGroup.Title} by {user.FirstName} {user.LastName}",
-                        cancellationToken: cancellationToken
-                    );
-                      
-                    botSessionStateService.ClearUserOperation(user.Id);
-                    await botMenuManagementService.SetGroupMenu(user, cancellationToken);
-                    
-                    return;
+                    await botHelper.SendMessage(userToInvite.ChatId, 
+                        $"You have been invited to the group '{chosenGroup.Title}' by {user.FirstName} {user.LastName}.", 
+                        cancellationToken: cancellationToken);
                 }
-                
-                await botClient.SendMessage(
-                    chatId: user.ChatId,
-                    text: "Something went wrong. Try again.",
-                    cancellationToken: cancellationToken
-                );
-                      
-                botSessionStateService.ClearUserOperation(user.Id);
-                await botMenuManagementService.SetGroupMenu(user, cancellationToken);
+
+                sessionStateService.ClearUserOperation(user.Id);
+                await menuManagementService.SetGroupMenu(user, cancellationToken);
             }
         }
-        catch (Exception e)
+        catch (Exception ex)
         {
-            logger.LogError(e, e.Message, e.StackTrace);
-            throw;
+            logger.LogError(ex, "Error handling InviteGroup operation.");
+            await botHelper.SendMessage(user.ChatId, "Something went wrong. Please try again later.", cancellationToken: cancellationToken);
+            await menuManagementService.SetGroupMenu(user, cancellationToken);
         }
     }
-
-    public async Task HandleListGroups(TelegramUser user, string groupTitle = "", CancellationToken cancellationToken = default)
+    
+    public async Task HandleListGroups(TelegramUser user, CancellationToken cancellationToken = default)
     {
         try
         {
-            if (botSessionStateService.GetCurrentMenu(user.Id) is not MenuEnum.Groups &&
-                botSessionStateService.GetCurrentUserOperation(user.Id) is not UserOperationsEnum.ListingGroups)
+            if (sessionStateService.GetCurrentUserOperationOrDefault(user.Id) != UserOperationsEnum.ListingGroups)
             {
-                botSessionStateService.PushMenu(user.Id, MenuEnum.Groups);
-                botSessionStateService.SetUserOperation(user.Id, UserOperationsEnum.ListingGroups);
+                sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.ListingGroups);
+                sessionStateService.PushMenu(user.Id, MenuEnum.Groups);
+            }
 
-                var userGroups = await groupService.GetUserGroups(user.Id);
-
-                var inlineKeyboardButtons = userGroups
-                    .Select(userGroup =>
-                        InlineKeyboardButton.WithCallbackData(userGroup.Title, userGroup.Id.ToString()))
-                    .Chunk(1)
-                    .Select(chunk => chunk.ToArray())
-                    .ToList();
-
-                var inlineKeyboard = new InlineKeyboardMarkup(inlineKeyboardButtons);
-
-                await botClient.SendMessage(
-                    chatId: user.ChatId,
-                    text: $"List of your groups:",
-                    replyMarkup: inlineKeyboard,
-                    cancellationToken: cancellationToken
-                );
-
+            var userGroups = await groupService.GetUserGroups(user.Id);
+            if (!userGroups.Any())
+            {
+                await botHelper.SendMessage(user.ChatId, "You have no groups.", cancellationToken: cancellationToken);
+                await menuManagementService.SetGroupMenu(user, cancellationToken);
                 return;
             }
+
+            var inlineKeyboard = botHelper.BuildInlineKeyboard(userGroups
+                .Select(group => new[] { InlineKeyboardButton.WithCallbackData(group.Title, group.Id.ToString()) }));
+
+            await botHelper.SendMessage(user.ChatId, "Here are your groups:", inlineKeyboard, cancellationToken);
         }
-        catch (Exception e)
+        catch (Exception ex)
         {
-            logger.LogError(e, e.Message, e.StackTrace);
-            throw;
+            logger.LogError(ex, "Error handling ListGroups operation.");
+            await botHelper.SendMessage(user.ChatId, "Something went wrong. Please try again later.", cancellationToken: cancellationToken);
+            await menuManagementService.SetGroupMenu(user, cancellationToken);
         }
     }
 }
