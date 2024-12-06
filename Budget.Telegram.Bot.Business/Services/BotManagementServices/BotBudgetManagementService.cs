@@ -152,31 +152,97 @@ public class BotBudgetManagementService(ILogger<BotBudgetManagementService> logg
     {
         try
         {
+            List<Entity.Entities.Budget> budgets = new List<Entity.Entities.Budget>();
+            Entity.Entities.Budget chosenBudget;
+            
             if (sessionStateService.GetCurrentMenuOrDefault(user.Id) is not MenuEnum.Budgets)
                 sessionStateService.PushMenu(user.Id, MenuEnum.Budgets);
-            
-            var budgets = await budgetService.FindAllForUser(user.Id);
-            if (!budgets.Any())
+
+            if (sessionStateService.GetCurrentUserOperationOrDefault(user.Id) is UserOperationsEnum.ChoosingEditBudgetAction)
             {
-                await botHelper.SendMessage(
-                    user.ChatId, 
-                    $"You don't have any budgets. You need to create at least one.",
-                    cancellationToken: cancellationToken);
-                await menuManagementService.SetStartMenu(user, cancellationToken: cancellationToken);
+                await ProcessEditBudgetAction(user, message, cancellationToken);
                 return;
+            }
+
+            if (sessionStateService.GetCurrentUserOperationOrDefault(user.Id) is UserOperationsEnum.None)
+            {
+                budgets = await budgetService.FindAllForUser(user.Id);
+                if (!budgets.Any())
+                {
+                    await botHelper.SendMessage(
+                        user.ChatId, 
+                        $"You don't have any budgets. You need to create at least one.",
+                        cancellationToken: cancellationToken);
+                    await menuManagementService.SetStartMenu(user, cancellationToken: cancellationToken);
+                    return;
+                }
             }
 
             switch (sessionStateService.GetCurrentUserOperationOrDefault(user.Id))
             {
-                default:
+                case UserOperationsEnum.ChoosingEditBudget:
+                    if (!long.TryParse(message, out long budgetId)) throw new ArgumentException("Incorrect budget ID");
                     
+                    var budget = await budgetService.FindById(budgetId);
+                    if (budget == null)
+                        throw new NullReferenceException("Budget not found");
+                        
+                    sessionStateService.PushUserChosenBudget(user.Id, budget);
+                    
+                    await SetChoosingEditActionMenu(user, cancellationToken);
+                    break;
+                case UserOperationsEnum.EditBudgetTitle:
+                    chosenBudget = sessionStateService.GetUserChosenBudget(user.Id);
+
+                    chosenBudget.Title = message;
+                    sessionStateService.PushUserChosenBudget(user.Id, chosenBudget);
+                    
+                    await SetChoosingEditActionMenu(user, cancellationToken);
+                    break;
+                case UserOperationsEnum.EditBudgetDescription:
+                    chosenBudget = sessionStateService.GetUserChosenBudget(user.Id);
+
+                    chosenBudget.Description = message;
+                    sessionStateService.PushUserChosenBudget(user.Id, chosenBudget);
+                    
+                    await SetChoosingEditActionMenu(user, cancellationToken);
+                    break;
+                case UserOperationsEnum.EditBudgetAmount:
+                    chosenBudget = sessionStateService.GetUserChosenBudget(user.Id);
+
+                    if (long.TryParse(message, out long budgetAmount))
+                    {
+                        chosenBudget.Amount = budgetAmount;
+                        sessionStateService.PushUserChosenBudget(user.Id, chosenBudget);
+                        await SetChoosingEditActionMenu(user, cancellationToken);
+                        break;
+                    }
+                    
+                    await botHelper.SendMessage(
+                        user.ChatId, 
+                        $"Please enter the number.",
+                        cancellationToken: cancellationToken);
+                    break;
+                default:
+                    sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.ChoosingEditBudget);
+                    var inlineKeyboard = botHelper.BuildInlineKeyboard(budgets
+                        .Select(b => new[] { InlineKeyboardButton.WithCallbackData(b.Title, b.Id.ToString()) }));
+                    
+                    await botHelper.SendMessage(
+                        user.ChatId, 
+                        $"Select a budget you want to edit:",
+                        inlineKeyboard, 
+                        cancellationToken);
                     break;
             }
         }
         catch (Exception e)
         {
             logger.LogError(e, "Error handling EditBudget operation.");
-            await botHelper.SendMessage(user.ChatId, "Something went wrong. Please try again later.", cancellationToken: cancellationToken);
+            await botHelper.SendMessage(
+                user.ChatId, 
+                $"Something went wrong. Please try again later.", 
+                cancellationToken: cancellationToken);
             await menuManagementService.SetBudgetMenu(user, cancellationToken);
         }
     }
@@ -190,8 +256,78 @@ public class BotBudgetManagementService(ILogger<BotBudgetManagementService> logg
         catch (Exception e)
         {
             logger.LogError(e, "Error handling ListBudget operation.");
-            await botHelper.SendMessage(user.ChatId, "Something went wrong. Please try again later.", cancellationToken: cancellationToken);
+            await botHelper.SendMessage(
+                user.ChatId, 
+                $"Something went wrong. Please try again later.", 
+                cancellationToken: cancellationToken);
             await menuManagementService.SetBudgetMenu(user, cancellationToken);
         }
+    }
+
+    private async Task ProcessEditBudgetAction(TelegramUser user, string message, CancellationToken cancellationToken = default)
+    {
+        switch (message)
+        {
+            case nameof(EditBudgetActionsEnum.EditTitle):
+                sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.EditBudgetTitle);
+                
+                await botHelper.SendMessage(
+                    user.ChatId, 
+                    $"Send new budget title", 
+                    new ReplyKeyboardMarkup("Cancel"), 
+                    cancellationToken);
+                return;
+            case nameof(EditBudgetActionsEnum.EditDescription):
+                sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.EditBudgetDescription);
+                
+                await botHelper.SendMessage(
+                    user.ChatId, 
+                    $"Send new budget description", 
+                    new ReplyKeyboardMarkup("Cancel"), 
+                    cancellationToken);
+                return;
+            case nameof(EditBudgetActionsEnum.EditAmount):
+                sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.EditBudgetAmount);
+                
+                await botHelper.SendMessage(
+                    user.ChatId, 
+                    $"Send new budget amount", 
+                    new ReplyKeyboardMarkup("Cancel"), 
+                    cancellationToken);
+                return;
+            case nameof(EditBudgetActionsEnum.Save):
+                sessionStateService.ClearUserOperation(user.Id);
+                
+                var chosenBudget = sessionStateService.GetUserChosenBudget(user.Id);
+                var budgetSaveResult = await budgetService.Update(chosenBudget);
+                if (!budgetSaveResult)
+                    throw new Exception($"There was an error saving the budget.");
+                
+                await botHelper.SendMessage(user.ChatId, $"Budget updated", cancellationToken: cancellationToken);
+                
+                await menuManagementService.SetBudgetMenu(user, cancellationToken);
+                return;
+            default:
+                await SetChoosingEditActionMenu(user, cancellationToken);
+                break;
+        }
+    }
+
+    private async Task SetChoosingEditActionMenu(TelegramUser user, CancellationToken cancellationToken = default)
+    {
+        sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.ChoosingEditBudgetAction);
+        
+        var keyboard = new ReplyKeyboardMarkup(
+            EditBudgetActionsEnum.EditTitle.ToString(),
+            EditBudgetActionsEnum.EditDescription.ToString(),
+            EditBudgetActionsEnum.EditAmount.ToString(),
+            EditBudgetActionsEnum.Save.ToString()
+        ){ResizeKeyboard = true};
+                        
+        await botHelper.SendMessage(
+            user.ChatId, 
+            $"Select the option from menu to edit in budget",
+            keyboard, 
+            cancellationToken: cancellationToken);
     }
 }

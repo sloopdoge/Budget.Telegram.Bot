@@ -14,6 +14,7 @@ public enum UserOperationsEnum
     AddBudgetDescription,
     AddBudgetAmount,
     ChoosingGroupToAddBudget,
+    ChoosingEditBudgetAction,
     EditBudget,
     ChoosingEditBudget,
     EditBudgetTitle,

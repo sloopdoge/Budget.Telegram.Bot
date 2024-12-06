@@ -6,6 +6,7 @@ using Budget.Telegram.Bot.Entity.Enums.Menus;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 
 namespace Budget.Telegram.Bot.Business.Services;
 
@@ -91,6 +92,9 @@ public class BotHandler(
             case nameof(BudgetMenuEnum.AddBudget):
                 await budgetManagementService.HandleAddBudget(_currentUser);
                 break;
+            case nameof(BudgetMenuEnum.EditBudget):
+                await budgetManagementService.HandleEditBudget(_currentUser);
+                break;
             default:
                 logger.LogWarning($"Unhandled command: {update.Message?.Text}");
                 await botClient.SendMessage(_currentUser.ChatId, "Unknown command. Please try again.");
@@ -117,6 +121,17 @@ public class BotHandler(
                 break;
             case UserOperationsEnum.ChoosingGroupToAddBudget:
                 await budgetManagementService.HandleAddBudget(_currentUser, update.CallbackQuery.Data);
+                break;
+            case UserOperationsEnum.EditBudgetTitle:
+            case UserOperationsEnum.EditBudgetAmount:
+            case UserOperationsEnum.EditBudgetDescription:
+                await budgetManagementService.HandleEditBudget(_currentUser, update.Message.Text);
+                break;
+            case UserOperationsEnum.ChoosingEditBudget:
+                await budgetManagementService.HandleEditBudget(_currentUser, update.CallbackQuery.Data);
+                break;
+            case UserOperationsEnum.ChoosingEditBudgetAction:
+                await budgetManagementService.HandleEditBudget(_currentUser, update.Message.Text);
                 break;
             default:
                 logger.LogWarning($"Unhandled operation: {_currentUserOperation}");
