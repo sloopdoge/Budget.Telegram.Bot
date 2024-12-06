@@ -7,8 +7,9 @@ public class Budget
 {
     [Key]
     public long Id { get; set; }
-    public required string Title { get; set; }
+    public string Title { get; set; }
     public string? Description { get; set; }
+    public double? Amount { get; set; } = 0;
 
     [JsonIgnore]
     public ICollection<UsersGroup> Groups { get; set; } = [];

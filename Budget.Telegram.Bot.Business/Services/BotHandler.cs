@@ -1,6 +1,7 @@
 ﻿using Budget.Telegram.Bot.Business.Interfaces;
 using Budget.Telegram.Bot.Business.Interfaces.BotManagementServices;
 using Budget.Telegram.Bot.Entity.Entities;
+using Budget.Telegram.Bot.Entity.Enums;
 using Budget.Telegram.Bot.Entity.Enums.Menus;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
@@ -14,7 +15,8 @@ public class BotHandler(
     ITelegramUserService userService, 
     IBotMenuManagementService menuManagementService, 
     IBotSessionStateService sessionStateService,
-    IBotGroupManagementService groupManagementService)
+    IBotGroupManagementService groupManagementService,
+    IBotBudgetManagementService budgetManagementService)
 {
     private TelegramUser? _currentUser;
     private MenuEnum? _currentMainMenu;
@@ -59,6 +61,12 @@ public class BotHandler(
             await HandleGroupMenuActions(update);
             return;
         }
+        
+        if (_currentMainMenu is MenuEnum.Budgets && _currentUserOperation is not UserOperationsEnum.None)
+        {
+            await HandleBudgetMenuActions(update);
+            return;
+        }
 
         switch (update.Message?.Text)
         {
@@ -81,12 +89,37 @@ public class BotHandler(
                 await groupManagementService.HandleListGroups(_currentUser);
                 break;
             case nameof(BudgetMenuEnum.AddBudget):
-                // Future Budget handling logic
+                await budgetManagementService.HandleAddBudget(_currentUser);
                 break;
             default:
                 logger.LogWarning($"Unhandled command: {update.Message?.Text}");
                 await botClient.SendMessage(_currentUser.ChatId, "Unknown command. Please try again.");
                 await menuManagementService.SetStartMenu(_currentUser);
+                break;
+        }
+    }
+
+    private async Task HandleBudgetMenuActions(Update update)
+    {
+        if (_currentUserOperation == null)
+        {
+            logger.LogWarning("No operation set for the current user.");
+            return;
+        }
+
+        switch (_currentUserOperation)
+        {
+            case UserOperationsEnum.AddBudget: 
+            case UserOperationsEnum.AddBudgetTitle: 
+            case UserOperationsEnum.AddBudgetDescription: 
+            case UserOperationsEnum.AddBudgetAmount:
+                await budgetManagementService.HandleAddBudget(_currentUser, update.Message.Text);
+                break;
+            case UserOperationsEnum.ChoosingGroupToAddBudget:
+                await budgetManagementService.HandleAddBudget(_currentUser, update.CallbackQuery.Data);
+                break;
+            default:
+                logger.LogWarning($"Unhandled operation: {_currentUserOperation}");
                 break;
         }
     }

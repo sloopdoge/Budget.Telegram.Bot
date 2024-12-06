@@ -1,11 +1,12 @@
 ﻿using Budget.Telegram.Bot.Business.Interfaces;
 using Budget.Telegram.Bot.DataAccess;
 using Budget.Telegram.Bot.Entity.Entities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Budget.Telegram.Bot.Business.Services;
 
-public class BudgetService(ILogger<BudgetService> logger, AppDbContext dbContext, IUsersGroupService usersGroupService) : IBudgetService
+public class BudgetService(ILogger<BudgetService> logger, AppDbContext dbContext) : IBudgetService
 {
     public async Task<Entity.Entities.Budget?> FindById(long id)
     {
@@ -19,6 +20,26 @@ public class BudgetService(ILogger<BudgetService> logger, AppDbContext dbContext
         {
             logger.LogError(e, e.Message);
             return null;
+        }
+    }
+
+    public async Task<List<Entity.Entities.Budget>> FindAllForUser(long userId)
+    {
+        try
+        {
+            var dbUser = await dbContext.TelegramUsers.Where(tu => tu.Id == userId).FirstOrDefaultAsync();
+            if (dbUser == null)
+                throw new NullReferenceException("User not found");
+            
+            return await dbContext.UsersGroups
+                .Where(ug => ug.Users.Contains(dbUser))
+                .SelectMany(ug => ug.Budgets)
+                .ToListAsync();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return new List<Entity.Entities.Budget>();
         }
     }
 

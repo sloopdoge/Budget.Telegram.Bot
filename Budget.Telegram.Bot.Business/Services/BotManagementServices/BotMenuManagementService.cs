@@ -19,6 +19,7 @@ public class BotMenuManagementService(
         try
         {
             var replyKeyboardMarkup = BuildMainMenu(MenuEnum.Start);
+            botSessionStateService.PopMenu(user.Id);
             botSessionStateService.PushMenu(user.Id, MenuEnum.Start);
 
             await telegramBotClient.SendMessage(

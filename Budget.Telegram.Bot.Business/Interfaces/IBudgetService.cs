@@ -5,6 +5,7 @@ namespace Budget.Telegram.Bot.Business.Interfaces;
 public interface IBudgetService
 {
     Task<Entity.Entities.Budget?> FindById(long id);
+    Task<List<Entity.Entities.Budget>> FindAllForUser(long userId);
     Task<bool> Update(Entity.Entities.Budget budget);
     Task<bool> Delete(long id);
     Task<bool> AddExpense(long id, Expense expense);

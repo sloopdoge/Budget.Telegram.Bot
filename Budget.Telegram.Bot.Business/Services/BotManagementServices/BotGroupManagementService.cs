@@ -2,6 +2,7 @@
 using Budget.Telegram.Bot.Business.Interfaces.BotManagementServices;
 using Budget.Telegram.Bot.Business.Interfaces.Helpers;
 using Budget.Telegram.Bot.Entity.Entities;
+using Budget.Telegram.Bot.Entity.Enums;
 using Budget.Telegram.Bot.Entity.Enums.Menus;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -116,7 +117,11 @@ public class BotGroupManagementService(
                     var inlineKeyboard = botHelper.BuildInlineKeyboard(userGroups
                         .Select(g => new[] { InlineKeyboardButton.WithCallbackData(g.Title, g.Id.ToString()) }));
 
-                    await botHelper.SendMessage(user.ChatId, "Select a group to edit:", inlineKeyboard, cancellationToken);
+                    await botHelper.SendMessage(
+                        user.ChatId, 
+                        $"Select a group to edit:", 
+                        inlineKeyboard, 
+                        cancellationToken);
                     break;
             }
         }
