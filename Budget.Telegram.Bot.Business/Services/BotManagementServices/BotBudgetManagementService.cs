@@ -251,7 +251,20 @@ public class BotBudgetManagementService(ILogger<BotBudgetManagementService> logg
     {
         try
         {
-            throw new NotImplementedException();
+            if (sessionStateService.GetCurrentMenuOrDefault(user.Id) is not MenuEnum.Budgets)
+                sessionStateService.PushMenu(user.Id, MenuEnum.Budgets);
+            
+            List<Entity.Entities.Budget> budgets = new List<Entity.Entities.Budget>();
+            budgets = await budgetService.FindAllForUser(user.Id);
+            
+            var inlineKeyboard = botHelper.BuildInlineKeyboard(budgets
+                .Select(b => new[] { InlineKeyboardButton.WithCallbackData(b.Title, b.Id.ToString()) }));
+                    
+            await botHelper.SendMessage(
+                user.ChatId, 
+                $"Here is your budgets:",
+                inlineKeyboard, 
+                cancellationToken);
         }
         catch (Exception e)
         {
@@ -262,6 +275,16 @@ public class BotBudgetManagementService(ILogger<BotBudgetManagementService> logg
                 cancellationToken: cancellationToken);
             await menuManagementService.SetBudgetMenu(user, cancellationToken);
         }
+    }
+
+    public async Task<bool> AddNewExpense(TelegramUser user, string message = "", CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task<bool> AddNewDeposit(TelegramUser user, string message = "", CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
     }
 
     private async Task ProcessEditBudgetAction(TelegramUser user, string message, CancellationToken cancellationToken = default)

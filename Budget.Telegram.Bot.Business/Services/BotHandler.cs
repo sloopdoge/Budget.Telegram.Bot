@@ -95,6 +95,9 @@ public class BotHandler(
             case nameof(BudgetMenuEnum.EditBudget):
                 await budgetManagementService.HandleEditBudget(_currentUser);
                 break;
+            case nameof(BudgetMenuEnum.ListMyBudgets):
+                await budgetManagementService.HandleListBudget(_currentUser);
+                break;
             default:
                 logger.LogWarning($"Unhandled command: {update.Message?.Text}");
                 await botClient.SendMessage(_currentUser.ChatId, "Unknown command. Please try again.");

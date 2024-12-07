@@ -4,4 +4,6 @@ public enum StartMenuEnum
 {
     Groups,
     Budgets,
+    AddExpense,
+    AddDeposit,
 }

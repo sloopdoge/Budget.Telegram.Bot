@@ -110,7 +110,9 @@ public class BotMenuManagementService(
                 new KeyboardButton[]
                 {
                     StartMenuEnum.Groups.ToString(), 
-                    StartMenuEnum.Budgets.ToString()
+                    StartMenuEnum.Budgets.ToString(),
+                    StartMenuEnum.AddDeposit.ToString(),
+                    StartMenuEnum.AddExpense.ToString(),
                 }
             },
             MenuEnum.Groups => new[]
