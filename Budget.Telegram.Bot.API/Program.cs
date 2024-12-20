@@ -19,6 +19,9 @@ public abstract class Program
         var token = builder.Configuration["TelegramBot:Token"];
         var webhookUrl = builder.Configuration["TelegramBot:WebhookUrl"];
 
+        builder.Logging.ClearProviders();
+        builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
+
         builder.Services.AddControllers();
         builder.Services.ConfigureTelegramBot<Microsoft.AspNetCore.Mvc.JsonOptions>(options => options.JsonSerializerOptions);
 
