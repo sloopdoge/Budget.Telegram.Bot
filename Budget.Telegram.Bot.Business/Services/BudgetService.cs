@@ -12,7 +12,7 @@ public class BudgetService(ILogger<BudgetService> logger, AppDbContext dbContext
     {
         try
         {
-            var dbBudget = await dbContext.Budgets.FindAsync(id);
+            var dbBudget = await dbContext.Budgets.FirstOrDefaultAsync(b => b.Id == id);
 
             return dbBudget;
         }
@@ -88,8 +88,9 @@ public class BudgetService(ILogger<BudgetService> logger, AppDbContext dbContext
             var dbBudget = await FindById(id);
             if (dbBudget == null)
                 return false;
-
+            
             dbBudget.Expenses.Add(expense);
+            dbBudget.Amount -= expense.Amount;
             var res = await dbContext.SaveChangesAsync();
             return res > 0;
         }
@@ -124,6 +125,7 @@ public class BudgetService(ILogger<BudgetService> logger, AppDbContext dbContext
             return false;
 
         dbBudget.Deposits.Add(deposit);
+        dbBudget.Amount += deposit.Amount;
         var res = await dbContext.SaveChangesAsync();
         return res > 0;
     }
@@ -132,11 +134,36 @@ public class BudgetService(ILogger<BudgetService> logger, AppDbContext dbContext
     {
         try
         {
-            var dbBudget = await FindById(id);
-            if (dbBudget == null)
+            var dbBudget = await dbContext.Budgets
+                .Include(b => b.Deposits)
+                .FirstOrDefaultAsync(b => b.Id == id);
+            
+            return dbBudget == null ? [] : dbBudget.Deposits.ToList();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, e.Message);
+            return [];
+        }
+    }
+
+    public async Task<List<TelegramUser>> GetUsersInBudget(long id)
+    {
+        try
+        {
+            var dbBudget = await dbContext.Budgets
+                .Include(b => b.Groups)
+                .ThenInclude(g => g.Users)
+                .FirstOrDefaultAsync(b => b.Id == id);
+
+            if (dbBudget?.Groups == null || dbBudget.Groups.Count == 0)
                 return [];
 
-            return dbBudget.Deposits.ToList();
+            var users = dbBudget.Groups
+                .SelectMany(g => g.Users)
+                .ToList();
+
+            return users;
         }
         catch (Exception e)
         {

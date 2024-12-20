@@ -12,4 +12,5 @@ public interface IBudgetService
     Task<List<Expense>> GetExpenses(long id);
     Task<bool> AddDeposit(long id, Deposit deposit);
     Task<List<Deposit>> GetDeposits(long id);
+    Task<List<TelegramUser>> GetUsersInBudget(long id);
 }

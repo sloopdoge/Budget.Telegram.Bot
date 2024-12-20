@@ -253,12 +253,11 @@ public class BotBudgetManagementService(ILogger<BotBudgetManagementService> logg
         {
             if (sessionStateService.GetCurrentMenuOrDefault(user.Id) is not MenuEnum.Budgets)
                 sessionStateService.PushMenu(user.Id, MenuEnum.Budgets);
-            
-            List<Entity.Entities.Budget> budgets = new List<Entity.Entities.Budget>();
-            budgets = await budgetService.FindAllForUser(user.Id);
+
+            var budgets = await budgetService.FindAllForUser(user.Id);
             
             var inlineKeyboard = botHelper.BuildInlineKeyboard(budgets
-                .Select(b => new[] { InlineKeyboardButton.WithCallbackData(b.Title, b.Id.ToString()) }));
+                .Select(b => new[] { InlineKeyboardButton.WithCallbackData($"{b.Title}: {b.Amount} \u20b4", b.Id.ToString()) }));
                     
             await botHelper.SendMessage(
                 user.ChatId, 
@@ -273,18 +272,242 @@ public class BotBudgetManagementService(ILogger<BotBudgetManagementService> logg
                 user.ChatId, 
                 $"Something went wrong. Please try again later.", 
                 cancellationToken: cancellationToken);
-            await menuManagementService.SetBudgetMenu(user, cancellationToken);
+            await menuManagementService.SetStartMenu(user, cancellationToken);
         }
     }
 
-    public async Task<bool> AddNewExpense(TelegramUser user, string message = "", CancellationToken cancellationToken = default)
+    public async Task AddNewExpense(TelegramUser user, string message = "", CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        try
+        {
+            if (sessionStateService.GetCurrentMenuOrDefault(user.Id) is not MenuEnum.AddExpense)
+                sessionStateService.PushMenu(user.Id, MenuEnum.AddExpense);
+
+            var budgets = await budgetService.FindAllForUser(user.Id);
+
+            Entity.Entities.Budget? chosenBudget;
+            switch (sessionStateService.GetCurrentUserOperationOrDefault(user.Id))
+            {
+                case UserOperationsEnum.None:
+                    var inlineKeyboard = botHelper.BuildInlineKeyboard(budgets
+                        .Select(b => new[] { InlineKeyboardButton.WithCallbackData(b.Title, b.Id.ToString()) }));
+                    
+                    sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.ListingBudgets);
+                    
+                    await botHelper.SendMessage(
+                        user.ChatId, 
+                        $"Choose budget you want to add expense:",
+                        inlineKeyboard, 
+                        cancellationToken);
+                    break;
+                case UserOperationsEnum.ListingBudgets:
+                    if (!long.TryParse(message, out var chosenBudgetId))
+                        throw new ArgumentException("Incorrect budget ID");
+                    
+                    chosenBudget = budgets.FirstOrDefault(b => b.Id == chosenBudgetId);
+                    if (chosenBudget == null)
+                        throw new NullReferenceException("Budget not found");
+                    
+                    sessionStateService.PushUserChosenBudget(user.Id, chosenBudget);
+                    sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.AddBudgetExpenseAmount);
+                    
+                    await botHelper.SendMessage(
+                        user.ChatId,
+                        $"Enter the amount of Expense:",
+                        new ReplyKeyboardMarkup("Cancel"){ ResizeKeyboard = true },
+                        cancellationToken
+                        );
+                    break;
+                case UserOperationsEnum.AddBudgetExpenseAmount:
+                    if (!double.TryParse(message, out double expenseAmount))
+                        throw new ArgumentException("Incorrect expense amount value");
+                    
+                    sessionStateService.PushUserChosenExpense(user.Id, new Expense(){Amount = expenseAmount});
+                    sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.AddBudgetExpenseDescription);
+                    
+                    await botHelper.SendMessage(
+                        user.ChatId,
+                        $"Enter the description of Expense:",
+                        new ReplyKeyboardMarkup("Cancel"){ ResizeKeyboard = true },
+                        cancellationToken
+                    );
+                    break;
+                case UserOperationsEnum.AddBudgetExpenseDescription:
+                    chosenBudget = budgets.FirstOrDefault(b => b.Id == sessionStateService.GetUserChosenBudget(user.Id).Id);
+                    if (chosenBudget == null)
+                        throw new NullReferenceException("Budget not found");
+                    
+                    var chosenExpense = sessionStateService.GetUserChosenExpense(user.Id);
+                    if (chosenExpense == null)
+                        throw new NullReferenceException("Expense not found");
+
+                    chosenExpense.Description = message;
+                    sessionStateService.PushUserChosenExpense(user.Id, chosenExpense);
+                    sessionStateService.ClearUserOperation(user.Id);
+                    
+                    var saveExpenseRes = await budgetService.AddExpense(chosenBudget.Id, chosenExpense);
+                    await botHelper.SendMessage(
+                        user.ChatId,
+                        saveExpenseRes ? "Expense added" : "Expense add error",
+                        cancellationToken: cancellationToken
+                    );
+
+                    if (saveExpenseRes)
+                    {
+                        chosenBudget = await budgetService.FindById(chosenBudget.Id);
+                        var budgetUsers = await budgetService.GetUsersInBudget(chosenBudget.Id);
+                        
+                        foreach (var userToNotify in budgetUsers
+                                     /*.Where(userToNotify => userToNotify.Id != user.Id)*/)
+                        {
+                            await botHelper.SendMessage(
+                                userToNotify.ChatId,
+                                $"Expense added to Budget: {chosenBudget.Title}\n" +
+                                $"By User: {user.FirstName} {user.LastName} @{user.UserName}\n" +
+                                $"Amount: {chosenExpense.Amount}\n",
+                                cancellationToken: cancellationToken
+                            );
+
+                            await botHelper.SendMessage(
+                                userToNotify.ChatId,
+                                $"Budget amount: {chosenBudget.Amount}", 
+                                cancellationToken: cancellationToken
+                            );
+                        }
+                    }
+                    
+                    await menuManagementService.SetStartMenu(user, cancellationToken);
+                    break;
+                default:
+                    throw new InvalidOperationException("Unknown operation.");
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Error handling AddNewExpense operation.");
+            await botHelper.SendMessage(
+                user.ChatId, 
+                $"Something went wrong. Please try again later.", 
+                cancellationToken: cancellationToken);
+            await menuManagementService.SetStartMenu(user, cancellationToken);
+        }
     }
 
-    public async Task<bool> AddNewDeposit(TelegramUser user, string message = "", CancellationToken cancellationToken = default)
+    public async Task AddNewDeposit(TelegramUser user, string message = "", CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        try
+        {
+            if (sessionStateService.GetCurrentMenuOrDefault(user.Id) is not MenuEnum.AddDeposit)
+                sessionStateService.PushMenu(user.Id, MenuEnum.AddDeposit);
+
+            var budgets = await budgetService.FindAllForUser(user.Id);
+
+            Entity.Entities.Budget? chosenBudget;
+            switch (sessionStateService.GetCurrentUserOperationOrDefault(user.Id))
+            {
+                case UserOperationsEnum.None:
+                    var inlineKeyboard = botHelper.BuildInlineKeyboard(budgets
+                        .Select(b => new[] { InlineKeyboardButton.WithCallbackData(b.Title, b.Id.ToString()) }));
+                    
+                    sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.ListingBudgets);
+                    
+                    await botHelper.SendMessage(
+                        user.ChatId, 
+                        $"Choose budget you want to add deposit:",
+                        inlineKeyboard, 
+                        cancellationToken);
+                    break;
+                case UserOperationsEnum.ListingBudgets:
+                    if (!long.TryParse(message, out var chosenBudgetId))
+                        throw new ArgumentException("Incorrect budget ID");
+                    
+                    chosenBudget = budgets.FirstOrDefault(b => b.Id == chosenBudgetId);
+                    if (chosenBudget == null)
+                        throw new NullReferenceException("Budget not found");
+                    
+                    sessionStateService.PushUserChosenBudget(user.Id, chosenBudget);
+                    sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.AddBudgetDepositAmount);
+                    
+                    await botHelper.SendMessage(
+                        user.ChatId,
+                        $"Enter the amount of Deposit:",
+                        new ReplyKeyboardMarkup("Cancel"){ ResizeKeyboard = true },
+                        cancellationToken
+                        );
+                    break;
+                case UserOperationsEnum.AddBudgetDepositAmount:
+                    if (!double.TryParse(message, out double depositAmount))
+                        throw new ArgumentException("Incorrect deposit amount value");
+                    
+                    sessionStateService.PushUserChosenDeposit(user.Id, new Deposit(){Amount = depositAmount});
+                    sessionStateService.SetUserOperation(user.Id, UserOperationsEnum.AddBudgetDepositDescription);
+                    
+                    await botHelper.SendMessage(
+                        user.ChatId,
+                        $"Enter the description of Deposit:",
+                        new ReplyKeyboardMarkup("Cancel"){ ResizeKeyboard = true },
+                        cancellationToken
+                    );
+                    break;
+                case UserOperationsEnum.AddBudgetDepositDescription:
+                    chosenBudget = budgets.FirstOrDefault(b => b.Id == sessionStateService.GetUserChosenBudget(user.Id).Id);
+                    if (chosenBudget == null)
+                        throw new NullReferenceException("Budget not found");
+                    
+                    var chosenDeposit = sessionStateService.GetUserChosenDeposit(user.Id);
+                    if (chosenDeposit == null)
+                        throw new NullReferenceException("Budget not found");
+
+                    chosenDeposit.Description = message;
+                    sessionStateService.PushUserChosenDeposit(user.Id, chosenDeposit);
+                    sessionStateService.ClearUserOperation(user.Id);
+                    
+                    var saveExpenseRes = await budgetService.AddDeposit(chosenBudget.Id, chosenDeposit);
+                    await botHelper.SendMessage(
+                        user.ChatId,
+                        saveExpenseRes ? "Deposit added" : "Deposit add error",
+                        cancellationToken: cancellationToken
+                    );
+                    
+                    if (saveExpenseRes)
+                    {
+                        chosenBudget = await budgetService.FindById(chosenBudget.Id);
+                        var budgetUsers = await budgetService.GetUsersInBudget(chosenBudget.Id);
+                        
+                        foreach (var userToNotify in budgetUsers
+                                     /*.Where(userToNotify => userToNotify.Id != user.Id)*/)
+                        {
+                            await botHelper.SendMessage(
+                                userToNotify.ChatId,
+                                $"Deposit added to Budget: {chosenBudget.Title}\n" +
+                                $"By User: {user.FirstName} {user.LastName} @{user.UserName}\n" +
+                                $"Amount: {chosenDeposit.Amount}\n",
+                                cancellationToken: cancellationToken
+                            );
+
+                            await botHelper.SendMessage(
+                                userToNotify.ChatId,
+                                $"Budget amount: {chosenBudget.Amount}", 
+                                cancellationToken: cancellationToken
+                            );
+                        }
+                    }
+                    
+                    await menuManagementService.SetStartMenu(user, cancellationToken);
+                    break;
+                default:
+                    throw new InvalidOperationException("Unknown operation.");
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Error handling AddNewDeposit operation.");
+            await botHelper.SendMessage(
+                user.ChatId, 
+                $"Something went wrong. Please try again later.", 
+                cancellationToken: cancellationToken);
+            await menuManagementService.SetStartMenu(user, cancellationToken);
+        }
     }
 
     private async Task ProcessEditBudgetAction(TelegramUser user, string message, CancellationToken cancellationToken = default)

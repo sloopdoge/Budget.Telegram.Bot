@@ -1,5 +1,6 @@
 ﻿using Budget.Telegram.Bot.Business.Interfaces;
 using Budget.Telegram.Bot.Business.Interfaces.BotManagementServices;
+using Budget.Telegram.Bot.Business.Services.BotManagementServices;
 using Budget.Telegram.Bot.Entity.Entities;
 using Budget.Telegram.Bot.Entity.Enums;
 using Budget.Telegram.Bot.Entity.Enums.Menus;
@@ -56,7 +57,7 @@ public class BotHandler(
             await menuManagementService.HandleGoBack(_currentUser);
             return;
         }
-        
+        /*
         if (_currentMainMenu is MenuEnum.Groups && _currentUserOperation is not UserOperationsEnum.None)
         {
             await HandleGroupMenuActions(update);
@@ -67,6 +68,35 @@ public class BotHandler(
         {
             await HandleBudgetMenuActions(update);
             return;
+        }
+        */
+        
+        if (_currentMainMenu.HasValue && new List<MenuEnum>
+                                      {
+                                          MenuEnum.Groups, 
+                                          MenuEnum.Budgets, 
+                                          MenuEnum.AddDeposit, 
+                                          MenuEnum.AddExpense
+                                      }.Contains(_currentMainMenu.Value) 
+            && _currentUserOperation is not UserOperationsEnum.None)
+        {
+            switch (_currentMainMenu)
+            {
+                case MenuEnum.Groups:
+                    await HandleGroupMenuActions(update);
+                    return;
+                case MenuEnum.Budgets:
+                    await HandleBudgetMenuActions(update);
+                    return;
+                case MenuEnum.AddDeposit:
+                    await budgetManagementService.AddNewDeposit(_currentUser,
+                        update.Type is UpdateType.CallbackQuery ? update.CallbackQuery.Data : update.Message?.Text);
+                    return;
+                case MenuEnum.AddExpense:
+                    await budgetManagementService.AddNewExpense(_currentUser,
+                        update.Type is UpdateType.CallbackQuery ? update.CallbackQuery.Data : update.Message?.Text);
+                    return;
+            }
         }
 
         switch (update.Message?.Text)

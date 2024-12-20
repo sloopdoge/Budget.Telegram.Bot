@@ -1,4 +1,5 @@
 ﻿using Budget.Telegram.Bot.Business.Interfaces;
+using Budget.Telegram.Bot.Entity.Entities;
 using Budget.Telegram.Bot.Entity.Enums;
 using Budget.Telegram.Bot.Entity.Enums.Menus;
 
@@ -10,6 +11,8 @@ public class BotSessionStateService : IBotSessionStateService
     private readonly Dictionary<long, UserOperationsEnum> _userOperations = new();
     private readonly Dictionary<long, long> _chosenGroups = new();
     private readonly Dictionary<long, Entity.Entities.Budget> _chosenBudgets = new();
+    private readonly Dictionary<long, Expense> _chosenExpenses = new();
+    private readonly Dictionary<long, Deposit> _chosenDeposits = new();
 
     public void PushMenu(long userId, MenuEnum menu)
     {
@@ -57,5 +60,27 @@ public class BotSessionStateService : IBotSessionStateService
     }
 
     public Entity.Entities.Budget GetUserChosenBudget(long userId) => _chosenBudgets[userId];
-    public void RemoveUserChosenBudget(long userId) => _chosenBudgets.Remove(userId);
+    public void PushUserChosenExpense(long userId, Expense expense)
+    {
+        var isExist = _chosenExpenses.ContainsKey(userId);
+        
+        if (isExist)
+            _chosenExpenses[userId] = expense;
+        else
+            _chosenExpenses.Add(userId, expense);
+    }
+
+    public Expense GetUserChosenExpense(long userId) => _chosenExpenses[userId];
+
+    public void PushUserChosenDeposit(long userId, Deposit deposit)
+    {
+        var isExist = _chosenDeposits.ContainsKey(userId);
+        
+        if (isExist)
+            _chosenDeposits[userId] = deposit;
+        else
+            _chosenDeposits.Add(userId, deposit);
+    }
+
+    public Deposit GetUserChosenDeposit(long userId) => _chosenDeposits[userId];
 }

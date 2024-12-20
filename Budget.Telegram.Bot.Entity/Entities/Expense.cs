@@ -9,7 +9,7 @@ public class Expense
     [Key]
     public long Id { get; set; }
     public ExpenseTypeEnum Type { get; set; }
-    public required string Description { get; set; }
+    public string Description { get; set; }
     public double Amount { get; set; }
 
     [JsonIgnore]

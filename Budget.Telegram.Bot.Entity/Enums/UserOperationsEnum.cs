@@ -21,6 +21,10 @@ public enum UserOperationsEnum
     EditBudgetDescription,
     EditBudgetAmount,
     ListingBudgets,
+    AddBudgetExpenseDescription,
+    AddBudgetExpenseAmount,
     AddBudgetExpense,
-    AddBudgetDeposit,
+    AddBudgetDepositDescription,
+    AddBudgetDepositAmount,
+    AddBudgetDeposit
 }

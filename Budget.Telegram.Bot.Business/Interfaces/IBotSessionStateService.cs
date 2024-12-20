@@ -1,4 +1,5 @@
-﻿using Budget.Telegram.Bot.Entity.Enums;
+﻿using Budget.Telegram.Bot.Entity.Entities;
+using Budget.Telegram.Bot.Entity.Enums;
 using Budget.Telegram.Bot.Entity.Enums.Menus;
 
 namespace Budget.Telegram.Bot.Business.Interfaces;
@@ -16,5 +17,8 @@ public interface IBotSessionStateService
     void RemoveUserChosenGroup(long userId);
     void PushUserChosenBudget(long userId, Entity.Entities.Budget budget);
     Entity.Entities.Budget GetUserChosenBudget(long userId);
-    void RemoveUserChosenBudget(long userId);
+    void PushUserChosenExpense(long userId, Expense expense);
+    Expense GetUserChosenExpense(long userId);
+    void PushUserChosenDeposit(long userId, Deposit deposit);
+    Deposit GetUserChosenDeposit(long userId);
 }

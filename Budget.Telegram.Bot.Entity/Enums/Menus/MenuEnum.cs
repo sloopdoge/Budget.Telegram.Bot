@@ -6,4 +6,6 @@ public enum MenuEnum
     Groups,
     Budgets,
     Back,
+    AddExpense,
+    AddDeposit,
 }
