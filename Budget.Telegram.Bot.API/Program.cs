@@ -1,11 +1,11 @@
-using Budget.Telegram.Bot.Business.Configs;
-using Budget.Telegram.Bot.Business.Interfaces;
-using Budget.Telegram.Bot.Business.Interfaces.BotManagementServices;
-using Budget.Telegram.Bot.Business.Interfaces.Helpers;
-using Budget.Telegram.Bot.Business.Services;
-using Budget.Telegram.Bot.Business.Services.BotManagementServices;
-using Budget.Telegram.Bot.Business.Services.Helpers;
-using Budget.Telegram.Bot.DataAccess;
+using Budget.Telegram.Bot.Infrastructure.Business.Configs;
+using Budget.Telegram.Bot.Infrastructure.Business.Interfaces;
+using Budget.Telegram.Bot.Infrastructure.Business.Interfaces.BotManagementServices;
+using Budget.Telegram.Bot.Infrastructure.Business.Interfaces.Helpers;
+using Budget.Telegram.Bot.Infrastructure.Business.Services;
+using Budget.Telegram.Bot.Infrastructure.Business.Services.BotManagementServices;
+using Budget.Telegram.Bot.Infrastructure.Business.Services.Helpers;
+using Budget.Telegram.Bot.Infrastructure.DataAccess;
 using Microsoft.EntityFrameworkCore;
 using Telegram.Bot;
 

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net9.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
     </PropertyGroup>
@@ -16,7 +16,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Budget.Telegram.Bot.Business\Budget.Telegram.Bot.Business.csproj" />
+      <ProjectReference Include="..\Budget.Telegram.Bot.Infrastructure\Budget.Telegram.Bot.Infrastructure.csproj" />
     </ItemGroup>
 
 </Project>

@@ -1,4 +1,4 @@
-﻿using Budget.Telegram.Bot.Business.Services;
+﻿using Budget.Telegram.Bot.Infrastructure.Business.Services;
 using Microsoft.AspNetCore.Mvc;
 using Telegram.Bot;
 using Telegram.Bot.Types;
