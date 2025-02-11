@@ -100,8 +100,12 @@ public abstract class Program
             app.UseAuthorization();
             app.MapControllers();
             
+            Log.Information($"=== Initializing bot client ===");
+            
             var botClient = app.Services.GetRequiredService<ITelegramBotClient>();
             await botClient.SetWebhook($"{webhookUrl}/api/bot/Webhook");
+            
+            Log.Information($"=== Bot client initialized successfully. URL: {webhookUrl}/api/bot/Webhook ===");
 
             await app.RunAsync();
         }
