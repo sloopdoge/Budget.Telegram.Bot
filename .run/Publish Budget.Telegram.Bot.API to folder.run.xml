@@ -1,0 +1,6 @@
+﻿<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Publish Budget.Telegram.Bot.API to folder" type="DotNetFolderPublish" factoryName="Publish to folder">
+    <riderPublish configuration="Release" delete_existing_files="true" platform="Any CPU" runtime="linux-x64" self_contained="true" target_folder="$PROJECT_DIR$/Budget.Telegram.Bot.API/bin/Release/net9.0/linux-x64/publish" target_framework="net9.0" uuid_high="-3184041618931168678" uuid_low="-5340395208020191717" />
+    <method v="2" />
+  </configuration>
+</component>
